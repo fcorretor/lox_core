@@ -126,8 +126,36 @@ def tela_principal():
             
         destino = st.text_input("Endereço de Desembarque Final")
         
-       if st.button("Calcular Rota via Satélite"):
+        if st.button("Calcular Rota via Satélite"):
             enderecos_completos = [origem] + [p for p in paradas if p] + [destino]
             
             # Validação básica
             if origem and destino:
+                with st.spinner("Processando satélites e trânsito..."):
+                    resultado = calcular_rota_automatica(enderecos_completos, tempo_espera)
+                
+                if isinstance(resultado, dict):
+                    st.markdown("### 🧾 Ticket de Cotação Lox (Dinâmico)")
+                    st.write(f"**Distância Estimada:** {resultado['km']} km")
+                    st.write(f"**Tempo de Trânsito Estimado:** {resultado['minutos']} min")
+                    if tempo_espera > 0:
+                        st.write(f"**Taxa de Espera Logística ({tempo_espera} min):** R$ {custo_espera_extra:.2f}")
+                    st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
+                else:
+                    st.error(resultado)
+            else:
+                st.warning("Preencha a origem e o destino final para o satélite operar.")
+                
+    st.markdown("---")
+    if st.button("Encerrar Sessão", type="primary"):
+        st.session_state["autenticado"] = False
+        st.rerun()
+
+# --- 6. MÁQUINA DE ESTADO ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+if not st.session_state["autenticado"]:
+    tela_login()
+else:
+    tela_principal()
