@@ -5,58 +5,60 @@ from geopy.geocoders import Nominatim
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
 # ==========================================
-# Desenvolvido por: SylvaCore & Zarto Express
-# Objetivo: Cotação travada para Sulmed sem margem para choro.
+# Desenvolvido por: SylvaCore & Varthoz Express
+# Versão: 1.0 (Ouro) - Zero Falhas e Roteamento Multi-Paradas
 
 # --- 1. CONFIGURAÇÃO DA INTERFACE ---
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
 
-# --- 2. CREDENCIAIS HARDCODED (O Porteiro) ---
+# --- 2. CREDENCIAIS HARDCODED ---
 CREDENCIAIS = {
     "sulmed": "lox2026",
     "tiesco": "boss"
 }
 
-# --- 3. CONSTANTES FINANCEIRAS (O Lucro) ---
-TARIFA_BASE = 15.00
-VALOR_POR_KM = 1.20
+# --- 3. CONSTANTES FINANCEIRAS (Margem Ajustada para Vida Real) ---
+TARIFA_BASE = 20.00
+VALOR_POR_KM = 1.50
 VALOR_MINUTO_VIAGEM = 0.50
 VALOR_MINUTO_ESPERA = 1.11
 
-# --- 4. FUNÇÕES DE ENGENHARIA (O Motor) ---
-def calcular_rota_automatica(origem, destino, tempo_espera):
-    """Bate na API do satélite para rotas não homologadas."""
+# --- 4. MOTOR DE ROTEAMENTO (Satélite + Trava Geográfica) ---
+def calcular_rota_automatica(enderecos, tempo_espera):
+    """Bate na API do satélite para rotas com ou sem paradas intermediárias."""
     try:
-        geolocator = Nominatim(user_agent="lox_b2b_routing_v1")
+        geolocator = Nominatim(user_agent="lox_varthoz_routing_v2")
+        coordenadas_list = []
         
-        # --- TRAVA GEOGRÁFICA (Prevenção de Erro de Escopo) ---
-        # Força o satélite a procurar estritamente dentro do estado.
-        query_origem = f"{origem}, Rio Grande do Sul, Brasil"
-        query_destino = f"{destino}, Rio Grande do Sul, Brasil"
-        
-        loc_origem = geolocator.geocode(query_origem)
-        loc_destino = geolocator.geocode(query_destino)
-        
-        if not loc_origem or not loc_destino:
-            return "Erro: Endereço inválido. Seja mais específico (Rua, Número, Cidade)."
+        # Geocodifica todos os pontos com a trava do Rio Grande do Sul
+        for end in enderecos:
+            if end.strip() == "":
+                continue
+            query = f"{end}, Rio Grande do Sul, Brasil"
+            loc = geolocator.geocode(query)
+            if not loc:
+                return f"Erro: Endereço não reconhecido ({end}). Verifique a digitação."
+            coordenadas_list.append(f"{loc.longitude},{loc.latitude}")
 
-        # OSRM para traçar a rota exata de carro
-        coordenadas = f"{loc_origem.longitude},{loc_origem.latitude};{loc_destino.longitude},{loc_destino.latitude}"
-        url_osrm = f"http://router.project-osrm.org/route/v1/driving/{coordenadas}?overview=false"
+        if len(coordenadas_list) < 2:
+            return "Erro: É necessário pelo menos uma origem e um destino válidos."
+
+        # Monta a URL do OSRM para múltiplos pontos (lon,lat;lon,lat;...)
+        coords_string = ";".join(coordenadas_list)
+        url_osrm = f"http://router.project-osrm.org/route/v1/driving/{coords_string}?overview=false"
         
         resposta = requests.get(url_osrm).json()
         if resposta.get("code") != "Ok":
-            return "Erro: Impossível traçar rota veicular."
+            return "Erro: Impossível traçar rota veicular entre estes pontos."
 
-        # Conversões
+        # Extração e Conversão (Com Fator de Trânsito Urbano 1.6x)
         km = resposta['routes'][0]['distance'] / 1000
-        
-        # FATOR DE TRÂNSITO: Multiplicamos o tempo do satélite por 1.6 para simular Porto Alegre real.
         minutos_via_livre = resposta['routes'][0]['duration'] / 60
-        minutos = minutos_via_livre * 1.6 
+        minutos_reais = minutos_via_livre * 1.6 
         
-        custo = TARIFA_BASE + (km * VALOR_POR_KM) + (minutos * VALOR_MINUTO_VIAGEM) + (tempo_espera * VALOR_MINUTO_ESPERA)
-        return {"km": round(km, 1), "minutos": round(minutos, 0), "total": round(custo, 2)}
+        custo = TARIFA_BASE + (km * VALOR_POR_KM) + (minutos_reais * VALOR_MINUTO_VIAGEM) + (tempo_espera * VALOR_MINUTO_ESPERA)
+        
+        return {"km": round(km, 1), "minutos": round(minutos_reais, 0), "total": round(custo, 2)}
     except Exception as e:
         return f"Falha no sistema de satélite: {e}"
 
@@ -64,7 +66,7 @@ def calcular_rota_automatica(origem, destino, tempo_espera):
 def tela_login():
     st.title("🔒 Lox")
     st.markdown("**Sistema Integrado de Roteamento Executivo**")
-    st.info("Acesso exclusivo para parceiros corporativos.")
+    st.info("Acesso exclusivo para parceiros corporativos da Varthoz Express.")
     
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
@@ -111,37 +113,18 @@ def tela_principal():
             st.success(f"## VALOR FINAL AUTORIZADO: R$ {valor_final:.2f}")
 
     else:
-        st.info("O sistema utilizará rastreamento via satélite para precificar o deslocamento e o tempo de trânsito.")
+        st.info("O sistema utilizará rastreamento via satélite para precificar o deslocamento.")
+        
         origem = st.text_input("Endereço de Embarque Completo")
-        destino = st.text_input("Endereço de Desembarque Completo")
+        
+        # Sistema Dinâmico de Paradas
+        qtd_paradas = st.selectbox("Quantidade de Paradas Intermediárias:", [0, 1, 2, 3])
+        paradas = []
+        for i in range(qtd_paradas):
+            p = st.text_input(f"Endereço da Parada {i+1}")
+            paradas.append(p)
+            
+        destino = st.text_input("Endereço de Desembarque Final")
         
         if st.button("Calcular Rota via Satélite"):
-            if origem and destino:
-                with st.spinner("Processando satélites e trânsito..."):
-                    resultado = calcular_rota_automatica(origem, destino, tempo_espera)
-                
-                if isinstance(resultado, dict):
-                    st.markdown("### 🧾 Ticket de Cotação Lox (Dinâmico)")
-                    st.write(f"**Distância Estimada:** {resultado['km']} km")
-                    st.write(f"**Tempo de Trânsito Estimado:** {resultado['minutos']} min")
-                    if tempo_espera > 0:
-                        st.write(f"**Taxa de Espera Logística ({tempo_espera} min):** R$ {custo_espera_extra:.2f}")
-                    st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
-                else:
-                    st.error(resultado)
-            else:
-                st.warning("Preencha origem e destino para o satélite operar.")
-                
-    st.markdown("---")
-    if st.button("Encerrar Sessão", type="primary"):
-        st.session_state["autenticado"] = False
-        st.rerun()
-
-# --- 6. MÁQUINA DE ESTADO ---
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-
-if not st.session_state["autenticado"]:
-    tela_login()
-else:
-    tela_principal()
+            enderecos_completos = [origem
