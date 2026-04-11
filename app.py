@@ -12,7 +12,7 @@ import urllib.parse
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
 
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
-NUMERO_WHATSAPP_CEO = "5551998186611 # <-- TIESCO: COLOQUE SEU NÚMERO AQUI (Código País + DDD + Número)
+NUMERO_WHATSAPP_CEO = "5551998186611 # <-- MEU NÚMERO AQUI (Código País + DDD + Número)
 
 TARIFA_BASE = 20.00
 VALOR_POR_KM = 1.50
