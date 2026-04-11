@@ -126,5 +126,8 @@ def tela_principal():
             
         destino = st.text_input("Endereço de Desembarque Final")
         
-        if st.button("Calcular Rota via Satélite"):
-            enderecos_completos = [origem
+       if st.button("Calcular Rota via Satélite"):
+            enderecos_completos = [origem] + [p for p in paradas if p] + [destino]
+            
+            # Validação básica
+            if origem and destino:
