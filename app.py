@@ -44,7 +44,10 @@ def calcular_rota_automatica(origem, destino, tempo_espera):
 
         # Conversões
         km = resposta['routes'][0]['distance'] / 1000
-        minutos = resposta['routes'][0]['duration'] / 60
+        
+        # FATOR DE TRÂNSITO: Multiplicamos o tempo do satélite por 1.6 para simular Porto Alegre real.
+        minutos_via_livre = resposta['routes'][0]['duration'] / 60
+        minutos = minutos_via_livre * 1.6 
         
         custo = TARIFA_BASE + (km * VALOR_POR_KM) + (minutos * VALOR_MINUTO_VIAGEM) + (tempo_espera * VALOR_MINUTO_ESPERA)
         return {"km": round(km, 1), "minutos": round(minutos, 0), "total": round(custo, 2)}
