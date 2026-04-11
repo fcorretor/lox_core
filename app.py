@@ -136,8 +136,7 @@ def tela_principal():
                 
                 if isinstance(resultado, dict):
                     st.markdown("### 🧾 Ticket de Cotação Lox (Dinâmico)")
-                    st.write(f"**Distância Estimada:** {resultado['km']} km")
-                    st.write(f"**Tempo de Trânsito Estimado:** {resultado['minutos']} min")
+                    st.info("A tarifa dinâmica Varthoz contempla deslocamento executivo, custos operacionais e tempo estimado de rota.")
                     if tempo_espera > 0:
                         st.write(f"**Taxa de Espera Logística ({tempo_espera} min):** R$ {custo_espera_extra:.2f}")
                     st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
