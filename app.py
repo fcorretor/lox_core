@@ -80,7 +80,7 @@ def tela_principal():
     with col_hora:
         hora_corrida = st.time_input("Horário do Embarque")
     
-    passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Dr. João Beal")
+    passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Francesco Apratto")
     
     st.markdown("### 📍 Rota do Traslado")
     col_rua_origem, col_cid_origem = st.columns([3, 1])
