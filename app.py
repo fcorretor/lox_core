@@ -28,8 +28,14 @@ def calcular_rota_automatica(origem, destino, tempo_espera):
     """Bate na API do satélite para rotas não homologadas."""
     try:
         geolocator = Nominatim(user_agent="lox_b2b_routing_v1")
-        loc_origem = geolocator.geocode(origem)
-        loc_destino = geolocator.geocode(destino)
+        
+        # --- TRAVA GEOGRÁFICA (Prevenção de Erro de Escopo) ---
+        # Força o satélite a procurar estritamente dentro do estado.
+        query_origem = f"{origem}, Rio Grande do Sul, Brasil"
+        query_destino = f"{destino}, Rio Grande do Sul, Brasil"
+        
+        loc_origem = geolocator.geocode(query_origem)
+        loc_destino = geolocator.geocode(query_destino)
         
         if not loc_origem or not loc_destino:
             return "Erro: Endereço inválido. Seja mais específico (Rua, Número, Cidade)."
