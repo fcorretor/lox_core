@@ -6,16 +6,16 @@ import urllib.parse
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 1.4 - Municípios Fechados, Agenda e Integração WhatsApp
+# Versão: 1.5 - Limpeza Visual WhatsApp e Municípios
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
 
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
-NUMERO_WHATSAPP_CEO = "5551998186611" # <-- MEU NÚMERO AQUI (Código País + DDD + Número)
+NUMERO_WHATSAPP_CEO = "5551998186611" # <-- MEU NÚMERO AQUI DENTRO DAS ASPAS
 
 TARIFA_BASE = 20.00
-VALOR_POR_KM = 1.50
+VALOR_POR_KM = 1.80
 VALOR_MINUTO_VIAGEM = 0.50
 VALOR_MINUTO_ESPERA = 1.11
 
@@ -26,7 +26,7 @@ CIDADES_RMPA = [
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
     try:
-        geolocator = Nominatim(user_agent="lox_varthoz_routing_v5")
+        geolocator = Nominatim(user_agent="lox_routing_v6")
         coordenadas_list = []
         
         for end in enderecos:
@@ -56,7 +56,7 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
 def tela_login():
     st.title("🔒 Lox")
     st.markdown("**Sistema Integrado de Roteamento Executivo**")
-    st.info("Acesso exclusivo para parceiros corporativos da Varthoz Express.")
+    st.info("Acesso exclusivo para parceiros corporativos da Plataforma Lox.")
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
     if st.button("Acessar Plataforma"):
@@ -140,14 +140,13 @@ def tela_principal():
                 # ==========================================
                 # BOTÃO DE DESPACHO PARA O WHATSAPP DO TIESCO
                 # ==========================================
-                rota_resumo = " ➡️ ".join(enderecos_pesquisa)
-                mensagem_wa = f"🚙 *NOVO AGENDAMENTO - VARTHOZ EXPRESS*\n\n" \
-                              f"👤 *Passageiro:* {passageiro}\n" \
-                              f"📅 *Data:* {data_corrida.strftime('%d/%m/%Y')}\n" \
-                              f"⏰ *Horário:* {hora_corrida.strftime('%H:%M')}\n\n" \
-                              f"📍 *Rota:* {rota_resumo}\n" \
-                              f"⏳ *Espera Programada:* {espera_total} min\n" \
-                              f"💰 *Valor Aprovado:* R$ {resultado['total']:.2f}\n\n" \
+                rota_resumo = " -> ".join(enderecos_pesquisa)
+                mensagem_wa = f"*NOVO AGENDAMENTO - PORTAL LOX*\n\n" \
+                              f"*Passageiro:* {passageiro}\n" \
+                              f"*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n\n" \
+                              f"*Rota:* {rota_resumo}\n" \
+                              f"*Espera Programada:* {espera_total} min\n" \
+                              f"*Valor Aprovado:* R$ {resultado['total']:.2f}\n\n" \
                               f"Confirma o agendamento, Francesco?"
                 
                 msg_codificada = urllib.parse.quote(mensagem_wa)
@@ -156,7 +155,7 @@ def tela_principal():
                 st.markdown(f"""
                 <a href="{link_whatsapp}" target="_blank">
                     <button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">
-                        📲 ENVIAR AGENDAMENTO PARA O WHATSAPP DA VARTHOZ
+                        📲 ENVIAR AGENDAMENTO PARA O WHATSAPP LOX
                     </button>
                 </a>
                 """, unsafe_allow_html=True)
