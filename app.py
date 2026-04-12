@@ -6,7 +6,7 @@ import urllib.parse
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 1.6 - Retorno das Rotas Homologadas (Fixas)
+# Versão: 1.7 - Inclusão de Contato do Solicitante
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -26,7 +26,7 @@ CIDADES_RMPA = [
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
     try:
-        geolocator = Nominatim(user_agent="lox_routing_v7")
+        geolocator = Nominatim(user_agent="lox_routing_v8")
         coordenadas_list = []
         for end in enderecos:
             if end.strip() == "": continue
@@ -74,7 +74,12 @@ def tela_principal():
         data_corrida = st.date_input("Data do Traslado")
     with col_hora:
         hora_corrida = st.time_input("Horário do Embarque")
-    passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Francesco Apratto")
+    
+    col_pass, col_sol = st.columns(2)
+    with col_pass:
+        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Dr. João Beal")
+    with col_sol:
+        solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Ive - (51) 9999-9999")
     
     st.markdown("---")
     tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
@@ -140,6 +145,7 @@ def tela_principal():
                     rota_resumo = " -> ".join(enderecos_pesquisa)
                     mensagem_wa = f"*NOVO AGENDAMENTO - PORTAL LOX*\n\n" \
                                   f"*Passageiro:* {passageiro}\n" \
+                                  f"*Solicitado por:* {solicitante}\n" \
                                   f"*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n\n" \
                                   f"*Rota:* {rota_resumo}\n" \
                                   f"*Espera Programada:* {espera_total} min\n" \
@@ -161,7 +167,7 @@ def tela_principal():
                         st.markdown("### 🔒 Rascunho para Recibo / NF (Visão Interna)")
                         hoje = datetime.now().strftime("%d/%m/%Y")
                         espera_texto = " | ".join(detalhes_paradas) if detalhes_paradas else "Sem espera em paradas."
-                        recibo_rascunho = f"""RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS\nN°: ___/2026\nData de Emissão: {hoje}\n\nTOMADOR DO SERVIÇO:\nRazão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.\nCNPJ: 90.747.908/0001-56\n\nDESCRIÇÃO DETALHADA DOS SERVIÇOS:\nServiços de logística e transporte executivo de pessoal ({passageiro}), realizados em veículo particular, conforme detalhamento abaixo:\n\nData da Operação: {data_corrida.strftime('%d/%m/%Y')} (Horário: {hora_corrida.strftime('%H:%M')})\nRota Executada: {rota_resumo}\nDetalhes de Espera: {espera_texto}\n\nValor pelos serviços prestados: R$ {resultado['total']:.2f}\n\nDeclaro que a quitação se dará mediante o crédito em conta.\n\nDADOS PARA PAGAMENTO:\nChave PIX: [REDACTED-PIX-CPF]\nBanco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento\nFavorecido: Francesco de Andrade Apratto\nCPF: [REDACTED-PIX-CPF]\nGestão Logística & Projetos"""
+                        recibo_rascunho = f"""RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS\nN°: ___/2026\nData de Emissão: {hoje}\n\nTOMADOR DO SERVIÇO:\nRazão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.\nCNPJ: 90.747.908/0001-56\n\nDESCRIÇÃO DETALHADA DOS SERVIÇOS:\nServiços de logística e transporte executivo de pessoal ({passageiro}), realizados em veículo particular, conforme detalhamento abaixo:\n\nSolicitante Operacional: {solicitante}\nData da Operação: {data_corrida.strftime('%d/%m/%Y')} (Horário: {hora_corrida.strftime('%H:%M')})\nRota Executada: {rota_resumo}\nDetalhes de Espera: {espera_texto}\n\nValor pelos serviços prestados: R$ {resultado['total']:.2f}\n\nDeclaro que a quitação se dará mediante o crédito em conta.\n\nDADOS PARA PAGAMENTO:\nChave PIX: [REDACTED-PIX-CPF]\nBanco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento\nFavorecido: Francesco de Andrade Apratto\nCPF: [REDACTED-PIX-CPF]\nGestão Logística & Projetos"""
                         st.text_area("Copie o texto abaixo para o seu PDF:", value=recibo_rascunho, height=350)
                 else:
                     st.error(resultado)
@@ -181,7 +187,6 @@ def tela_principal():
         espera_extra = st.number_input("Tempo de Espera Extra no Local (min) - Opcional", min_value=0, step=5)
 
         if st.button("Gerar Pedido de Rota Fixa", type="primary"):
-            # Valores baseados nas tuas Notas Fiscais
             if "Braskem" in rota_fixa:
                 valor_base = 250.00
             else:
@@ -198,6 +203,7 @@ def tela_principal():
             
             mensagem_wa_fixa = f"*NOVO AGENDAMENTO - PORTAL LOX (ROTA FIXA)*\n\n" \
                                f"*Passageiro:* {passageiro}\n" \
+                               f"*Solicitado por:* {solicitante}\n" \
                                f"*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n\n" \
                                f"*Rota:* {rota_fixa}\n" \
                                f"*Espera Adicional:* {espera_extra} min\n" \
@@ -219,7 +225,7 @@ def tela_principal():
                 st.markdown("### 🔒 Rascunho para Recibo / NF (Visão Interna)")
                 hoje = datetime.now().strftime("%d/%m/%Y")
                 texto_espera_fixa = f"Espera no local: {espera_extra} min" if espera_extra > 0 else "Sem tempo de espera excedente."
-                recibo_rascunho_fixo = f"""RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS\nN°: ___/2026\nData de Emissão: {hoje}\n\nTOMADOR DO SERVIÇO:\nRazão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.\nCNPJ: 90.747.908/0001-56\n\nDESCRIÇÃO DETALHADA DOS SERVIÇOS:\nServiços de logística e transporte executivo de pessoal ({passageiro}), realizados em veículo particular, conforme detalhamento abaixo:\n\nData da Operação: {data_corrida.strftime('%d/%m/%Y')} (Horário: {hora_corrida.strftime('%H:%M')})\nRota Executada: {rota_fixa}\nDetalhes: {texto_espera_fixa}\n\nValor pelos serviços prestados: R$ {valor_final:.2f}\n\nDeclaro que a quitação se dará mediante o crédito em conta.\n\nDADOS PARA PAGAMENTO:\nChave PIX: [REDACTED-PIX-CPF]\nBanco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento\nFavorecido: Francesco de Andrade Apratto\nCPF: [REDACTED-PIX-CPF]\nGestão Logística & Projetos"""
+                recibo_rascunho_fixo = f"""RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS\nN°: ___/2026\nData de Emissão: {hoje}\n\nTOMADOR DO SERVIÇO:\nRazão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.\nCNPJ: 90.747.908/0001-56\n\nDESCRIÇÃO DETALHADA DOS SERVIÇOS:\nServiços de logística e transporte executivo de pessoal ({passageiro}), realizados em veículo particular, conforme detalhamento abaixo:\n\nSolicitante Operacional: {solicitante}\nData da Operação: {data_corrida.strftime('%d/%m/%Y')} (Horário: {hora_corrida.strftime('%H:%M')})\nRota Executada: {rota_fixa}\nDetalhes: {texto_espera_fixa}\n\nValor pelos serviços prestados: R$ {valor_final:.2f}\n\nDeclaro que a quitação se dará mediante o crédito em conta.\n\nDADOS PARA PAGAMENTO:\nChave PIX: [REDACTED-PIX-CPF]\nBanco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento\nFavorecido: Francesco de Andrade Apratto\nCPF: [REDACTED-PIX-CPF]\nGestão Logística & Projetos"""
                 st.text_area("Copie o texto abaixo para o seu PDF:", value=recibo_rascunho_fixo, height=350)
 
     st.markdown("---")
