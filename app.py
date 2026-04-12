@@ -77,9 +77,9 @@ def tela_principal():
     
     col_pass, col_sol = st.columns(2)
     with col_pass:
-        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Dr. João Beal")
+        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Fulano")
     with col_sol:
-        solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Ive - (51) 9999-9999")
+        solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Francesco - (51) 9999-9999")
     
     st.markdown("---")
     tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
