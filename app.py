@@ -6,12 +6,11 @@ import urllib.parse
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 1.8 - Identidade Profissional (Francesco)
+# Versão: 1.9 - Lançamento Oficial com FAQ Integrado
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
 
-# Credenciais de acesso (Logins permanecem os mesmos para não confundir o acesso)
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
 NUMERO_WHATSAPP_CEO = "5551998186611" 
 
@@ -33,7 +32,7 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
             if end.strip() == "": continue
             query = f"{end}, Rio Grande do Sul, Brasil"
             loc = geolocator.geocode(query)
-            if not loc: return f"Erro: Endereço não localizado pelo satélite ({end}). Verifique a rua."
+            if not loc: return f"Erro: Endereço não localizado pelo satélite ({end})."
             coordenadas_list.append(f"{loc.longitude},{loc.latitude}")
 
         if len(coordenadas_list) < 2: return "Erro: Necessário origem e destino."
@@ -65,11 +64,7 @@ def tela_login():
             st.error("Credenciais inválidas.")
 
 def tela_principal():
-    # Mapeamento de nomes para exibição profissional no sistema
-    nomes_exibicao = {
-        "tiesco": "Francesco",
-        "sulmed": "Sulmed Administrativo"
-    }
+    nomes_exibicao = {"tiesco": "Francesco", "sulmed": "Sulmed Administrativo"}
     usuario_atual = st.session_state['cliente']
     nome_operador = nomes_exibicao.get(usuario_atual, usuario_atual.capitalize())
     
@@ -78,6 +73,7 @@ def tela_principal():
     st.markdown("---")
     
     st.warning("⏱️ **REGRA OPERACIONAL:** Agendamentos devem ser solicitados com antecedência mínima de 1 Turno (4 horas).")
+    
     col_data, col_hora = st.columns(2)
     with col_data:
         data_corrida = st.date_input("Data do Traslado")
@@ -86,7 +82,7 @@ def tela_principal():
     
     col_pass, col_sol = st.columns(2)
     with col_pass:
-        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Francesco Apratto")
+        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Dr. João Beal")
     with col_sol:
         solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Ive - (51) 9999-9999")
     
@@ -139,97 +135,57 @@ def tela_principal():
             if ida_e_volta and origem_completa: enderecos_pesquisa.append(origem_completa)
             
             if len(enderecos_pesquisa) >= 2 and rua_origem and rua_dest:
-                with st.spinner("Processando satélites e trânsito..."):
+                with st.spinner("Processando satélites..."):
                     resultado = calcular_rota_automatica(enderecos_pesquisa, espera_total)
                 
                 if isinstance(resultado, dict):
                     st.markdown("### 🧾 Ticket de Cotação Lox")
-                    if espera_total > 0:
-                        st.write(f"**Taxa de Espera Total ({espera_total} min):** R$ {(espera_total * VALOR_MINUTO_ESPERA):.2f}")
                     st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
                     
                     rota_resumo = " -> ".join(enderecos_pesquisa)
-                    mensagem_wa = f"*NOVO AGENDAMENTO - PORTAL LOX*\n\n" \
-                                  f"*Passageiro:* {passageiro}\n" \
-                                  f"*Solicitado por:* {solicitante}\n" \
-                                  f"*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n\n" \
-                                  f"*Rota:* {rota_resumo}\n" \
-                                  f"*Espera Programada:* {espera_total} min\n" \
-                                  f"*Valor Aprovado:* R$ {resultado['total']:.2f}\n\n" \
-                                  f"Confirma o agendamento, Francesco?"
+                    mensagem_wa = f"*NOVO AGENDAMENTO - PORTAL LOX*\n\n*Passageiro:* {passageiro}\n*Solicitado por:* {solicitante}\n*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n\n*Rota:* {rota_resumo}\n*Espera:* {espera_total} min\n*Valor:* R$ {resultado['total']:.2f}\n\nConfirma, Francesco?"
                     msg_codificada = urllib.parse.quote(mensagem_wa)
                     link_whatsapp = f"https://wa.me/{NUMERO_WHATSAPP_CEO}?text={msg_codificada}"
                     
-                    st.markdown(f"""
-                    <a href="{link_whatsapp}" target="_blank">
-                    <button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">
-                    📲 ENVIAR AGENDAMENTO PARA O WHATSAPP LOX
-                    </button>
-                    </a>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
                     
                     if st.session_state['cliente'] == 'tiesco':
                         st.markdown("---")
-                        st.markdown("### 🔒 Rascunho para Recibo / NF (Visão Interna)")
-                        hoje = datetime.now().strftime("%d/%m/%Y")
-                        espera_texto = " | ".join(detalhes_paradas) if detalhes_paradas else "Sem espera em paradas."
-                        recibo_rascunho = f"""RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS\nN°: ___/2026\nData de Emissão: {hoje}\n\nTOMADOR DO SERVIÇO:\nRazão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.\nCNPJ: 90.747.908/0001-56\n\nDESCRIÇÃO DETALHADA DOS SERVIÇOS:\nServiços de logística e transporte executivo de pessoal ({passageiro}), realizados em veículo particular, conforme detalhamento abaixo:\n\nSolicitante Operacional: {solicitante}\nData da Operação: {data_corrida.strftime('%d/%m/%Y')} (Horário: {hora_corrida.strftime('%H:%M')})\nRota Executada: {rota_resumo}\nDetalhes de Espera: {espera_texto}\n\nValor pelos serviços prestados: R$ {resultado['total']:.2f}\n\nDeclaro que a quitação se dará mediante o crédito em conta.\n\nDADOS PARA PAGAMENTO:\nChave PIX: [REDACTED-PIX-CPF]\nBanco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento\nFavorecido: Francesco de Andrade Apratto\nCPF: [REDACTED-PIX-CPF]\nGestão Logística & Projetos"""
-                        st.text_area("Copie o texto abaixo para o seu PDF:", value=recibo_rascunho, height=350)
-                else:
-                    st.error(resultado)
-            else:
-                st.warning("Preencha a Rua de Origem e a Rua de Destino para calcular.")
+                        st.markdown("### 🔒 Rascunho para Recibo / NF (Interno)")
+                        recibo_rascunho = f"RECIBO N°: ___/2026\nTOMADOR: SULMED ASSISTÊNCIA MÉDICA LTDA.\nServiço: Logística Executiva ({passageiro})\nSolicitante: {solicitante}\nData: {data_corrida.strftime('%d/%m/%Y')}\nRota: {rota_resumo}\nEspera: {espera_total} min\nVALOR: R$ {resultado['total']:.2f}\nFavorecido: Francesco de Andrade Apratto\nPIX/CPF: [REDACTED-PIX-CPF]"
+                        st.text_area("Copie para o PDF:", value=recibo_rascunho, height=250)
+                else: st.error(resultado)
 
     else:
-        st.info("Rotas com valores fixos já negociados e aprovados.")
-        rota_fixa = st.selectbox("Selecione a Rota Homologada:", [
-            "Porto Alegre <-> Braskem Unidade Q2 (Triunfo) [Ida e Volta]",
-            "Porto Alegre <-> Distrito Industrial / Cia do Aço (Alvorada) [Ida e Volta]"
-        ])
-        
-        espera_extra = st.number_input("Tempo de Espera Extra no Local (min) - Opcional", min_value=0, step=5)
+        st.info("Rotas com valores fixos homologados.")
+        rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem Unidade Q2 (Triunfo) [Ida e Volta]", "Porto Alegre <-> Distrito Industrial (Alvorada) [Ida e Volta]"])
+        espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
 
         if st.button("Gerar Pedido de Rota Fixa", type="primary"):
-            if "Braskem" in rota_fixa:
-                valor_base = 250.00
-            else:
-                valor_base = 125.00
-                
-            custo_espera = espera_extra * VALOR_MINUTO_ESPERA
-            valor_final = valor_base + custo_espera
-            
-            st.markdown("### 🧾 Ticket de Cotação Lox")
-            st.write(f"**Valor Base da Rota:** R$ {valor_base:.2f}")
-            if espera_extra > 0:
-                st.write(f"**Espera Logística Extra ({espera_extra} min):** R$ {custo_espera:.2f}")
+            valor_base = 250.00 if "Braskem" in rota_fixa else 125.00
+            valor_final = valor_base + (espera_extra * VALOR_MINUTO_ESPERA)
             st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
-            
-            mensagem_wa_fixa = f"*NOVO AGENDAMENTO - PORTAL LOX (ROTA FIXA)*\n\n" \
-                               f"*Passageiro:* {passageiro}\n" \
-                               f"*Solicitado por:* {solicitante}\n" \
-                               f"*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n\n" \
-                               f"*Rota:* {rota_fixa}\n" \
-                               f"*Espera Adicional:* {espera_extra} min\n" \
-                               f"*Valor Aprovado:* R$ {valor_final:.2f}\n\n" \
-                               f"Confirma o agendamento, Francesco?"
-            msg_codificada_fixa = urllib.parse.quote(mensagem_wa_fixa)
-            link_whatsapp_fixo = f"https://wa.me/{NUMERO_WHATSAPP_CEO}?text={msg_codificada_fixa}"
-            
-            st.markdown(f"""
-            <a href="{link_whatsapp_fixo}" target="_blank">
-            <button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">
-            📲 ENVIAR AGENDAMENTO PARA O WHATSAPP LOX
-            </button>
-            </a>
-            """, unsafe_allow_html=True)
-            
-            if st.session_state['cliente'] == 'tiesco':
-                st.markdown("---")
-                st.markdown("### 🔒 Rascunho para Recibo / NF (Visão Interna)")
-                hoje = datetime.now().strftime("%d/%m/%Y")
-                texto_espera_fixa = f"Espera no local: {espera_extra} min" if espera_extra > 0 else "Sem tempo de espera excedente."
-                recibo_rascunho_fixo = f"""RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS\nN°: ___/2026\nData de Emissão: {hoje}\n\nTOMADOR DO SERVIÇO:\nRazão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.\nCNPJ: 90.747.908/0001-56\n\nDESCRIÇÃO DETALHADA DOS SERVIÇOS:\nServiços de logística e transporte executivo de pessoal ({passageiro}), realizados em veículo particular, conforme detalhamento abaixo:\n\nSolicitante Operacional: {solicitante}\nData da Operação: {data_corrida.strftime('%d/%m/%Y')} (Horário: {hora_corrida.strftime('%H:%M')})\nRota Executada: {rota_fixa}\nDetalhes: {texto_espera_fixa}\n\nValor pelos serviços prestados: R$ {valor_final:.2f}\n\nDeclaro que a quitação se dará mediante o crédito em conta.\n\nDADOS PARA PAGAMENTO:\nChave PIX: [REDACTED-PIX-CPF]\nBanco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento\nFavorecido: Francesco de Andrade Apratto\nCPF: [REDACTED-PIX-CPF]\nGestão Logística & Projetos"""
-                st.text_area("Copie o texto abaixo para o seu PDF:", value=recibo_rascunho_fixo, height=350)
+            mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX*\n\n*Passageiro:* {passageiro}\n*Solicitante:* {solicitante}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
+            st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
+
+    # ==========================================
+    # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
+    # ==========================================
+    st.markdown("---")
+    with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
+        st.markdown("""
+        **1. O que é o Portal Lox?** É o sistema de gestão logística da Varthoz Express para a Sulmed, garantindo cotações exatas e agendamentos rápidos.
+
+        **2. Por que o valor é diferente dos aplicativos comuns?** O Lox opera com **Tarifa Dinâmica Zero**. O preço é fixo por KM, protegendo o orçamento da Sulmed contra aumentos por chuva ou trânsito.
+
+        **3. Qual a antecedência para agendar?** Solicitamos no mínimo **1 Turno (4 horas)** de antecedência para garantir a disponibilidade exclusiva do veículo.
+
+        **4. Como funciona a Taxa de Espera?** O valor de R$ 1,11/min é aplicado quando o veículo fica à disposição exclusiva do médico no local de atendimento para retorno imediato.
+
+        **5. O agendamento é automático?** Ao clicar no botão, os dados são enviados para o Francesco. A confirmação final ocorre via WhatsApp após a validação da escala.
+
+        **6. Como recebo a Nota Fiscal?** Após a conclusão do traslado, o Francesco emite o Recibo Oficial com assinatura digital Gov.br e envia para o administrativo/financeiro.
+        """)
 
     st.markdown("---")
     if st.button("Encerrar Sessão"):
