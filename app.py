@@ -6,13 +6,14 @@ import urllib.parse
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 1.7 - Inclusão de Contato do Solicitante
+# Versão: 1.8 - Identidade Profissional (Francesco)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
 
+# Credenciais de acesso (Logins permanecem os mesmos para não confundir o acesso)
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
-NUMERO_WHATSAPP_CEO = "5551998186611" # <-- MEU NÚMERO AQUI DENTRO DAS ASPAS
+NUMERO_WHATSAPP_CEO = "5551998186611" 
 
 TARIFA_BASE = 20.00
 VALOR_POR_KM = 1.80
@@ -26,7 +27,7 @@ CIDADES_RMPA = [
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
     try:
-        geolocator = Nominatim(user_agent="lox_routing_v8")
+        geolocator = Nominatim(user_agent="lox_routing_v9")
         coordenadas_list = []
         for end in enderecos:
             if end.strip() == "": continue
@@ -64,7 +65,15 @@ def tela_login():
             st.error("Credenciais inválidas.")
 
 def tela_principal():
-    st.success(f"Operador Logado: {st.session_state['cliente'].upper()}")
+    # Mapeamento de nomes para exibição profissional no sistema
+    nomes_exibicao = {
+        "tiesco": "Francesco",
+        "sulmed": "Sulmed Administrativo"
+    }
+    usuario_atual = st.session_state['cliente']
+    nome_operador = nomes_exibicao.get(usuario_atual, usuario_atual.capitalize())
+    
+    st.success(f"Operador Logado: {nome_operador}")
     st.title("🚘 Cotação e Agendamento Lox")
     st.markdown("---")
     
@@ -77,17 +86,14 @@ def tela_principal():
     
     col_pass, col_sol = st.columns(2)
     with col_pass:
-        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Fulano")
+        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Francesco Apratto")
     with col_sol:
-        solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Francesco - (51) 9999-9999")
+        solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Ive - (51) 9999-9999")
     
     st.markdown("---")
     tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
     st.markdown("---")
 
-    # ==========================================
-    # MODALIDADE 1: ROTA DINÂMICA (SATÉLITE)
-    # ==========================================
     if tipo_rota == "Nova Rota (Sob Demanda)":
         st.markdown("### 📍 Rota Dinâmica")
         col_rua_origem, col_cid_origem = st.columns([3, 1])
@@ -174,9 +180,6 @@ def tela_principal():
             else:
                 st.warning("Preencha a Rua de Origem e a Rua de Destino para calcular.")
 
-    # ==========================================
-    # MODALIDADE 2: ROTA HOMOLOGADA (FIXA)
-    # ==========================================
     else:
         st.info("Rotas com valores fixos já negociados e aprovados.")
         rota_fixa = st.selectbox("Selecione a Rota Homologada:", [
