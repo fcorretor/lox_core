@@ -17,9 +17,9 @@ st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layo
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
 NUMERO_WHATSAPP_CEO = "5551998186611" 
 
-TARIFA_BASE = 20.00
-VALOR_POR_KM = 1.80
-VALOR_MINUTO_VIAGEM = 0.50
+TARIFA_BASE = 14.00
+VALOR_POR_KM = 1.50
+VALOR_MINUTO_VIAGEM = 0.25
 VALOR_MINUTO_ESPERA = 1.11
 
 CIDADES_RMPA = [
