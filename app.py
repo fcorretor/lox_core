@@ -313,6 +313,22 @@ def tela_principal():
                     st.warning("Ainda não há dados processados na base.")
             except Exception as e:
                 st.error("Erro ao puxar a malha financeira. Verifique o Google Sheets.")
+        if dados_tabela:
+        df = pd.DataFrame(dados_tabela)
+        
+        st.markdown("### 📈 Análise Visual de Impacto")
+        col_chart1, col_chart2 = st.columns(2)
+        
+        with col_chart1:
+            st.write("Distribuição por Centro de Custo")
+            # Gráfico de barras simples com a matriz de valores
+            chart_data = df.groupby('Centro_Custo')['Valor_Total'].sum()
+            st.bar_chart(chart_data)
+            
+        with col_chart2:
+            st.write("Volume de KM por Departamento")
+            km_data = df.groupby('Centro_Custo')['KM_Total'].sum()
+            st.area_chart(km_data)
                
     # ==========================================
     # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
