@@ -296,39 +296,40 @@ def tela_principal():
                     mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
                     st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
 
-    with aba_financeiro:
+with aba_financeiro:
         st.subheader("Auditoria de Despesas por Departamento")
         st.info("Visão exclusiva da diretoria: Mapeamento do custo de transporte por setor (Value-Based Pricing).")
         
         if st.button("Carregar Matriz Financeira"):
             try:
                 sheet = conectar_planilha()
-                dados_tabela = sheet.get_all_records()
-                if dados_tabela:
-                    df = pd.DataFrame(dados_tabela)
-                    resumo_custos = df.groupby('Centro_Custo')['Valor_Total'].sum().reset_index()
-                    resumo_custos.columns = ['Centro de Custo', 'Total Faturado (R$)']
-                    st.dataframe(resumo_custos, use_container_width=True)
+                if sheet:
+                    dados_tabela = sheet.get_all_records()
+                    if dados_tabela:
+                        df = pd.DataFrame(dados_tabela)
+                        
+                        st.markdown("### 📈 Análise Visual de Impacto")
+                        col_chart1, col_chart2 = st.columns(2)
+                        
+                        with col_chart1:
+                            st.write("Distribuição por Centro de Custo")
+                            chart_data = df.groupby('Centro_Custo')['Valor_Total'].sum()
+                            st.bar_chart(chart_data)
+                            
+                        with col_chart2:
+                            st.write("Volume de KM por Departamento")
+                            km_data = df.groupby('Centro_Custo')['KM_Total'].sum()
+                            st.area_chart(km_data)
+                            
+                        resumo_custos = df.groupby('Centro_Custo')['Valor_Total'].sum().reset_index()
+                        resumo_custos.columns = ['Centro de Custo', 'Total Faturado (R$)']
+                        st.dataframe(resumo_custos, use_container_width=True)
+                    else:
+                        st.warning("Ainda não há dados processados na base.")
                 else:
-                    st.warning("Ainda não há dados processados na base.")
+                    st.error("Falha ao conectar com o banco de dados (Google Sheets).")
             except Exception as e:
-                st.error("Erro ao puxar a malha financeira. Verifique o Google Sheets.")
-        if dados_tabela:
-            df = pd.DataFrame(dados_tabela)
-        
-            st.markdown("### 📈 Análise Visual de Impacto")
-            col_chart1, col_chart2 = st.columns(2)
-        
-        with col_chart1:
-            st.write("Distribuição por Centro de Custo")
-            # Gráfico de barras simples com a matriz de valores
-            chart_data = df.groupby('Centro_Custo')['Valor_Total'].sum()
-            st.bar_chart(chart_data)
-            
-        with col_chart2:
-            st.write("Volume de KM por Departamento")
-            km_data = df.groupby('Centro_Custo')['KM_Total'].sum()
-            st.area_chart(km_data)
+                st.error(f"Erro de processamento da malha financeira: {e}")
                
     # ==========================================
     # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
