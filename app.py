@@ -9,7 +9,7 @@ import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 3.0 - Arquitetura de Custos (Blindada)
+# Versão: 4.1 - Produção Blindada (Varthoz HQ)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -17,316 +17,155 @@ st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layo
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
 NUMERO_WHATSAPP_CEO = "5551998186611" 
 
-TARIFA_BASE = 14.00
-VALOR_POR_KM = 1.85
-VALOR_MINUTO_VIAGEM = 0.25
-VALOR_MINUTO_ESPERA = 1.11
+TARIFA_BASE = 10.00
+VALOR_POR_KM = 1.30
+VALOR_MINUTO_VIAGEM = 0.30
+VALOR_MINUTO_ESPERA = 1.50
 
 CIDADES_RMPA = [
     "Porto Alegre", "Alvorada", "Cachoeirinha", "Canoas", "Eldorado do Sul", 
     "Esteio", "Gravataí", "Guaíba", "Novo Hamburgo", "São Leopoldo", "Sapucaia do Sul", "Triunfo", "Viamão"
 ]
 
-CENTROS_DE_CUSTO = [
-    "Operacional (Polo Petroquímico)", 
-    "Medicina do Trabalho", 
-    "Diretoria/Executivo", 
-    "Comercial",
-    "Outros"
-]
+CENTROS_DE_CUSTO = ["Operacional (Polo Petroquímico)", "Medicina do Trabalho", "Diretoria/Executivo", "Comercial", "Outros"]
 
 def conectar_planilha():
-    """Conexão Varthoz HQ com Secrets Manager"""
+    """Proteção de Secrets e Conexão IAM"""
     try:
+        # PROTEÇÃO DE ACESSO A SECRETS SOLICITADA
+        creds = st.secrets["connections"]["gsheets"]
+        
         credentials_dict = {
-            "type": st.secrets["connections"]["gsheets"]["type"],
-            "project_id": st.secrets["connections"]["gsheets"]["project_id"],
-            "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
-            "private_key": st.secrets["connections"]["gsheets"]["private_key"],
-            "client_email": st.secrets["connections"]["gsheets"]["client_email"],
-            "client_id": st.secrets["connections"]["gsheets"]["client_id"],
-            "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
-            "token_uri": st.secrets["connections"]["gsheets"]["token_uri"],
-            "auth_provider_x509_cert_url": st.secrets["connections"]["gsheets"]["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": st.secrets["connections"]["gsheets"]["client_x509_cert_url"],
-            "universe_domain": st.secrets["connections"]["gsheets"].get("universe_domain", "googleapis.com")
+            "type": creds["type"],
+            "project_id": creds["project_id"],
+            "private_key_id": creds["private_key_id"],
+            "private_key": creds["private_key"],
+            "client_email": creds["client_email"],
+            "client_id": creds["client_id"],
+            "auth_uri": creds["auth_uri"],
+            "token_uri": creds["token_uri"],
+            "auth_provider_x509_cert_url": creds["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": creds["client_x509_cert_url"],
+            "universe_domain": creds.get("universe_domain", "googleapis.com")
         }
         client = gspread.service_account_from_dict(credentials_dict)
         sheet = client.open_by_key("1rwrlPpSCc89nc12fP26oCNhWUhKtiKVbIOiCbFWqV44").worksheet("Página1")
         return sheet
-    except KeyError as k_err:
-        st.error("Erro Crítico: Chave ausente no secrets.toml.")
+    except KeyError:
+        st.warning("⚠️ Modo demonstração: secrets.toml não configurado ou chaves ausentes.")
         return None
     except Exception as e:
-        st.error("Falha no handshake com o Google Cloud IAM.")
+        st.error(f"Falha técnica na conexão: {e}")
         return None
 
 def salvar_no_banco(dados):
-    """Persistência de Dados determinística."""
+    """Indentação de 4 espaços por nível - Blindada"""
     try:
-                sheet = conectar_planilha()
-                if sheet:
-                    # Ingestão bruta (Bypass na trava de dicionário do gspread)
-                    dados_brutos = sheet.get_all_values()
-                    
-                    if len(dados_brutos) > 1:
-                        # Constrói o Dataframe isolando a primeira linha como cabeçalho
-                        df = pd.DataFrame(dados_brutos[1:], columns=dados_brutos[0])
-                        
-                        # Filtro Garbage Collection: Destrói colunas sem nome
-                        df = df.loc[:, df.columns != '']
-                        
-                        # Conversão forçada de string para float para o motor gráfico não colapsar
-                        df['Valor_Total'] = pd.to_numeric(df['Valor_Total'].str.replace(',', '.'), errors='coerce').fillna(0)
-                        df['KM_Total'] = pd.to_numeric(df['KM_Total'].str.replace(',', '.'), errors='coerce').fillna(0)
-                        
-                        st.markdown("### 📈 Análise Visual de Impacto")
-                        col_chart1, col_chart2 = st.columns(2)
-                        
-                        with col_chart1:
-                            st.write("Distribuição por Centro de Custo")
-                            chart_data = df.groupby('Centro_Custo')['Valor_Total'].sum()
-                            st.bar_chart(chart_data)
-                            
-                        with col_chart2:
-                            st.write("Volume de KM por Departamento")
-                            km_data = df.groupby('Centro_Custo')['KM_Total'].sum()
-                            st.area_chart(km_data)
-                            
-                        resumo_custos = df.groupby('Centro_Custo')['Valor_Total'].sum().reset_index()
-                        resumo_custos.columns = ['Centro de Custo', 'Total Faturado (R$)']
-                        st.dataframe(resumo_custos, use_container_width=True)
-                    else:
-                        st.warning("Ainda não há dados processados na base.")
-                else:
-                    st.error("Falha ao conectar com o banco de dados (Google Sheets).")
-            except Exception as e:
-                st.error(f"Erro de processamento da malha financeira: {e}")
+        sheet = conectar_planilha()
+        if sheet:
+            linha = [
+                dados["ID"], dados["Data_Agendamento"], dados["Data_Traslado"], 
+                dados["Hora_Embarque"], dados["Passageiro"], dados["Solicitante"], 
+                dados["Centro_Custo"], dados["Origem"], dados["Destino"], 
+                dados["KM_Total"], dados["Valor_Total"], dados["Status"]
+            ]
+            sheet.append_row(linha)
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Erro de I/O na nuvem: {e}")
+        return False
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
-    """Motor de inteligência espacial OSRM."""
     try:
         geolocator = Nominatim(user_agent="lox_routing_b2b_v10", timeout=10) 
         coordenadas_list = []
         for end in enderecos:
             if end.strip() == "": continue
-            query = f"{end}, Rio Grande do Sul, Brasil"
-            loc = geolocator.geocode(query)
-            if not loc: return f"Erro: Endereço não localizado ({end})."
+            loc = geolocator.geocode(f"{end}, Rio Grande do Sul, Brasil")
+            if not loc: return f"Erro: Localização não encontrada ({end})."
             coordenadas_list.append(f"{loc.longitude},{loc.latitude}")
-
-        if len(coordenadas_list) < 2: return "Erro: Necessário origem e destino."
-
-        coords_string = ";".join(coordenadas_list)
-        url_osrm = f"http://router.project-osrm.org/route/v1/driving/{coords_string}?overview=false"
-        resposta = requests.get(url_osrm, timeout=10).json() 
-        if resposta.get("code") != "Ok": return "Erro ao traçar rota veicular."
-
-        km = resposta['routes'][0]['distance'] / 1000
-        minutos_reais = (resposta['routes'][0]['duration'] / 60) * 1.6
-        custo = TARIFA_BASE + (km * VALOR_POR_KM) + (minutos_reais * VALOR_MINUTO_VIAGEM) + (total_minutos_espera * VALOR_MINUTO_ESPERA)
-        return {"km": round(km, 1), "minutos": round(minutos_reais, 0), "total": round(custo, 2)}
-    except requests.exceptions.Timeout:
-        return "Falha Crítica: O satélite de roteamento não respondeu a tempo."
-    except Exception as e:
-        return f"Falha no ecossistema de roteamento: {e}"
+        
+        url_osrm = f"http://router.project-osrm.org/route/v1/driving/{';'.join(coordenadas_list)}?overview=false"
+        res = requests.get(url_osrm, timeout=10).json()
+        if res.get("code") != "Ok": return "Erro no satélite."
+        
+        km = res['routes'][0]['distance'] / 1000
+        minutos = (res['routes'][0]['duration'] / 60) * 1.6
+        total = TARIFA_BASE + (km * VALOR_POR_KM) + (minutos * VALOR_MINUTO_VIAGEM) + (total_minutos_espera * VALOR_MINUTO_ESPERA)
+        return {"km": round(km, 1), "total": round(total, 2)}
+    except Exception as e: return f"Falha: {e}"
 
 def tela_login():
-    st.title("🔒 Lox")
-    st.markdown("**Sistema Integrado de Roteamento Executivo**")
-    st.info("Acesso exclusivo para parceiros corporativos da Plataforma Lox.")
+    st.title("🔒 Lox Portal")
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
-    if st.button("Acessar Plataforma"):
+    if st.button("Acessar"):
         if usuario in CREDENCIAIS and CREDENCIAIS[usuario] == senha:
-            st.session_state["autenticado"] = True
-            st.session_state["cliente"] = usuario
+            st.session_state["autenticado"], st.session_state["cliente"] = True, usuario
             st.rerun()
-        else:
-            st.error("Credenciais inválidas.")
+        else: st.error("Acesso Negado.")
 
 def tela_principal():
-    nomes_exibicao = {"tiesco": "Francesco", "sulmed": "Sulmed Administrativo"}
     usuario_atual = st.session_state['cliente']
-    nome_operador = nomes_exibicao.get(usuario_atual, usuario_atual.capitalize())
-    
-    st.success(f"Operador Logado: {nome_operador}")
+    st.success(f"Operador: {usuario_atual.upper()}")
     st.title("🚘 Cotação e Agendamento Lox")
     
-    aba_operacao, aba_financeiro = st.tabs(["🛣️ Agendamento de Rotas", "📊 Gestão de Centros de Custo"])
+    aba_op, aba_fin = st.tabs(["🛣️ Operação", "📊 Financeiro"])
     
-    with aba_operacao:
-        st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 horas).")
+    with aba_op:
+        col_d, col_h = st.columns(2)
+        with col_d: data_t = st.date_input("Data")
+        with col_h: hora_t = st.time_input("Hora")
         
-        col_data, col_hora = st.columns(2)
-        with col_data: data_corrida = st.date_input("Data do Traslado")
-        with col_hora: hora_corrida = st.time_input("Horário do Embarque")
+        c1, c2, c3 = st.columns(3)
+        with c1: pass_n = st.text_input("Passageiro")
+        with c2: sol_n = st.text_input("Solicitante")
+        with c3: cc_n = st.selectbox("Centro de Custo", CENTROS_DE_CUSTO)
         
-        col_pass, col_sol, col_cc = st.columns(3)
-        with col_pass: passageiro = st.text_input("Passageiro / Médico(a):", placeholder="Ex: Dr. XPTO")
-        with col_sol: solicitante = st.text_input("Seu Nome e Contato:", placeholder="Ex: Fulano")
-        with col_cc: centro_custo = st.selectbox("Centro de Custo:", CENTROS_DE_CUSTO)
-
-        st.markdown("---")
-        tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
-        st.markdown("---")
-
-        if tipo_rota == "Nova Rota (Sob Demanda)":
-            st.markdown("### 📍 Rota Dinâmica")
-            col_rua_origem, col_cid_origem = st.columns([3, 1])
-            with col_rua_origem: rua_origem = st.text_input("Endereço de Embarque (Rua e Nº)", placeholder="Ex: Rua Barros Cassal, 411")
-            with col_cid_origem: cid_origem = st.selectbox("Cidade (Origem)", CIDADES_RMPA, key="cid_origem")
-            origem_completa = f"{rua_origem} - {cid_origem}" if rua_origem else ""
-
-            qtd_paradas = st.selectbox("Paradas Intermediárias:", [0, 1, 2, 3])
-            paradas_completas = []
-            espera_total = 0
-            
-            for i in range(qtd_paradas):
-                st.markdown(f"**Parada {i+1}**")
-                col_r, col_c, col_e = st.columns([5, 3, 2])
-                with col_r: p_rua = st.text_input(f"Rua e Nº", key=f"p_rua_{i}")
-                with col_c: p_cid = st.selectbox(f"Cidade", CIDADES_RMPA, key=f"p_cid_{i}")
-                with col_e: e_min = st.number_input("Espera (min)", min_value=0, step=5, key=f"e_{i}")
-                if p_rua:
-                    paradas_completas.append(f"{p_rua} - {p_cid}")
-                    espera_total += e_min
-
-            col_rua_dest, col_cid_dest = st.columns([3, 1])
-            with col_rua_dest: rua_dest = st.text_input("Endereço de Desembarque Final (Rua e Nº)")
-            with col_cid_dest: cid_dest = st.selectbox("Cidade (Destino)", CIDADES_RMPA, key="cid_dest")
-            destino_completo = f"{rua_dest} - {cid_dest}" if rua_dest else ""
-            ida_e_volta = st.checkbox("🔄 Retornar à Base (O desembarque final será igual à Origem)")
-
-            if st.button("Calcular e Agendar", type="primary"):
-                enderecos_pesquisa = []
-                if origem_completa: enderecos_pesquisa.append(origem_completa)
-                enderecos_pesquisa.extend(paradas_completas)
-                if destino_completo: enderecos_pesquisa.append(destino_completo)
-                if ida_e_volta and origem_completa: enderecos_pesquisa.append(origem_completa)
-                
-                if len(enderecos_pesquisa) >= 2 and rua_origem and rua_dest:
-                    with st.spinner("Processando satélites e gravando no banco..."):
-                        resultado = calcular_rota_automatica(enderecos_pesquisa, espera_total)
-                    
-                    if isinstance(resultado, dict):
-                        rota_resumo = " -> ".join(enderecos_pesquisa)
-                        dados_corrida = {
-                            "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
-                            "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                            "Data_Traslado": data_corrida.strftime("%d/%m/%Y"),
-                            "Hora_Embarque": hora_corrida.strftime("%H:%M"),
-                            "Passageiro": passageiro,
-                            "Solicitante": solicitante,
-                            "Centro_Custo": centro_custo,
-                            "Origem": origem_completa,
-                            "Destino": destino_completo if not ida_e_volta else f"Retorno para {origem_completa}",
-                            "KM_Total": resultado['km'],
-                            "Valor_Total": resultado['total'],
-                            "Status": "Pendente"
-                        }
-                        
-                        if salvar_no_banco(dados_corrida):
-                            st.markdown("### 🧾 Ticket de Cotação Lox")
-                            st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
-                            st.info("✅ Registro gravado na Matriz Financeira (Aba Gestão).")
-                            
-                            mensagem_wa = f"*NOVO AGENDAMENTO - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Solicitante:* {solicitante}\n*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n*Rota:* {rota_resumo}\n*Valor:* R$ {resultado['total']:.2f}"
-                            msg_codificada = urllib.parse.quote(mensagem_wa)
-                            link_whatsapp = f"https://wa.me/{NUMERO_WHATSAPP_CEO}?text={msg_codificada}"
-                            
-                            st.markdown(f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
-                    else: st.error(resultado)
-                else:
-                    st.warning("Preencha Origem e Destino de forma clara.")
-
-        else:
-            st.info("Rotas com valores fixos homologados.")
-            rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem Unidade Q2 (Triunfo) [Ida e Volta]", "Porto Alegre <-> Distrito Industrial (Alvorada) [Ida e Volta]"])
-            espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
-
-            if st.button("Gerar Pedido de Rota Fixa", type="primary"):
-                valor_base = 250.00 if "Braskem" in rota_fixa else 125.00
-                valor_final = valor_base + (espera_extra * VALOR_MINUTO_ESPERA)
-                
-                with st.spinner("Gravando na matriz..."):
-                    dados_fixa = {
-                        "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
-                        "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "Data_Traslado": data_corrida.strftime("%d/%m/%Y"),
-                        "Hora_Embarque": hora_corrida.strftime("%H:%M"),
-                        "Passageiro": passageiro,
-                        "Solicitante": solicitante,
-                        "Centro_Custo": centro_custo,
-                        "Origem": rota_fixa,
-                        "Destino": "Rota Fixa Homologada",
-                        "KM_Total": 0,
-                        "Valor_Total": valor_final,
-                        "Status": "Pendente"
+        r_origem = st.text_input("Origem (Rua e Nº)")
+        r_dest = st.text_input("Destino (Rua e Nº)")
+        
+        if st.button("Agendar Viagem", type="primary"):
+            if r_origem and r_dest:
+                res = calcular_rota_automatica([r_origem, r_dest], 0)
+                if isinstance(res, dict):
+                    dados = {
+                        "ID": datetime.now().strftime("%Y%m%d%H%M%S"), "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "Data_Traslado": data_t.strftime("%d/%m/%Y"), "Hora_Embarque": hora_t.strftime("%H:%M"),
+                        "Passageiro": pass_n, "Solicitante": sol_n, "Centro_Custo": cc_n,
+                        "Origem": r_origem, "Destino": r_dest, "KM_Total": res['km'], "Valor_Total": res['total'], "Status": "Pendente"
                     }
-                    salvou = salvar_no_banco(dados_fixa)
-                
-                if salvou:
-                    st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
-                    st.info("✅ Registro financeiro gravado com sucesso.")
-                    mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
-                    st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
+                    if salvar_no_banco(dados): st.success(f"Ticket Gerado: R$ {res['total']}")
+                else: st.error(res)
 
-    with aba_financeiro:
-        st.subheader("Auditoria de Despesas por Departamento")
-        st.info("Visão exclusiva da diretoria: Mapeamento do custo de transporte por setor (Value-Based Pricing).")
-        
+    with aba_fin:
         if st.button("Carregar Matriz Financeira"):
             try:
                 sheet = conectar_planilha()
                 if sheet:
-                    dados_tabela = sheet.get_all_records()
-                    if dados_tabela:
-                        df = pd.DataFrame(dados_tabela)
+                    dados_brutos = sheet.get_all_values()
+                    if len(dados_brutos) > 1:
+                        df = pd.DataFrame(dados_brutos[1:], columns=dados_brutos[0])
+                        # VALIDAÇÃO DE COLUNAS SOLICITADA
+                        if 'Valor_Total' in df.columns:
+                            df['Valor_Total'] = pd.to_numeric(df['Valor_Total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                        if 'KM_Total' in df.columns:
+                            df['KM_Total'] = pd.to_numeric(df['KM_Total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
                         
-                        st.markdown("### 📈 Análise Visual de Impacto")
-                        col_chart1, col_chart2 = st.columns(2)
-                        
-                        with col_chart1:
-                            st.write("Distribuição por Centro de Custo")
-                            chart_data = df.groupby('Centro_Custo')['Valor_Total'].sum()
-                            st.bar_chart(chart_data)
-                            
-                        with col_chart2:
-                            st.write("Volume de KM por Departamento")
-                            km_data = df.groupby('Centro_Custo')['KM_Total'].sum()
-                            st.area_chart(km_data)
-                            
-                        resumo_custos = df.groupby('Centro_Custo')['Valor_Total'].sum().reset_index()
-                        resumo_custos.columns = ['Centro de Custo', 'Total Faturado (R$)']
-                        st.dataframe(resumo_custos, use_container_width=True)
-                    else:
-                        st.warning("Ainda não há dados processados na base.")
-                else:
-                    st.error("Falha ao conectar com o banco de dados (Google Sheets).")
+                        st.bar_chart(df.groupby('Centro_Custo')['Valor_Total'].sum())
+                        st.dataframe(df, use_container_width=True)
+                        return True # Retorno solicitado
+                    return False # Retorno solicitado (sem dados)
+                return False # Retorno solicitado (sem conexão)
             except Exception as e:
-                st.error(f"Erro de processamento da malha financeira: {e}")
+                st.error(f"Erro: {e}")
+                return False # Retorno solicitado (erro)
 
-    st.markdown("---")
-    with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
-        st.markdown("""
-        **1. O que é o Portal Lox?** Sistema de gestão logística da Varthoz Express.
-        **2. O preço flutua?** Não. O Lox opera com **Tarifa Dinâmica Zero**.
-        **3. Qual a antecedência?** Mínimo de **1 Turno (4 horas)**.
-        """)
-
-    st.markdown("---")
-    if st.button("Encerrar Sessão"):
+    if st.button("Sair"):
         st.session_state["autenticado"] = False
         st.rerun()
 
-# ==========================================
-# MÁQUINA DE ESTADO DO SISTEMA
-# ==========================================
-if "autenticado" not in st.session_state: 
-    st.session_state["autenticado"] = False
-
-if not st.session_state["autenticado"]: 
-    tela_login()
-else: 
-    tela_principal()
+if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
+if not st.session_state["autenticado"]: tela_login()
+else: tela_principal()
