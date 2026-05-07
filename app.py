@@ -330,17 +330,16 @@ with aba_financeiro:
                     st.error("Falha ao conectar com o banco de dados (Google Sheets).")
             except Exception as e:
                 st.error(f"Erro de processamento da malha financeira: {e}")
-               
-    # ==========================================
-    # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
-    # ==========================================
+
+    # ---------------------------------------------------------
+    # FIM DA FUNÇÃO TELA_PRINCIPAL (EXATAMENTE 4 ESPAÇOS DE RECUO)
+    # ---------------------------------------------------------
     st.markdown("---")
     with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
         st.markdown("""
-        **1. O que é o Portal Lox?** É o sistema de gestão logística da Varthoz Express para a Sulmed.
-        **2. Por que o valor é diferente?** O Lox opera com **Tarifa Dinâmica Zero**. O preço é fixo.
-        **3. Qual a antecedência?** Solicitamos no mínimo **1 Turno (4 horas)** de antecedência.
-        **4. Como recebo a Nota Fiscal?** Após o traslado, o Recibo Oficial é enviado com assinatura digital Gov.br.
+        **1. O que é o Portal Lox?** Sistema de gestão logística da Varthoz Express.
+        **2. O preço flutua?** Não. O Lox opera com **Tarifa Dinâmica Zero**.
+        **3. Qual a antecedência?** Mínimo de **1 Turno (4 horas)**.
         """)
 
     st.markdown("---")
@@ -349,7 +348,8 @@ with aba_financeiro:
         st.rerun()
 
 # ==========================================
-# MÁQUINA DE ESTADO DO SISTEMA (Fora de qualquer função)
+# MÁQUINA DE ESTADO DO SISTEMA 
+# (ZERO ESPAÇOS - COLADO NA MARGEM ESQUERDA)
 # ==========================================
 if "autenticado" not in st.session_state: 
     st.session_state["autenticado"] = False
