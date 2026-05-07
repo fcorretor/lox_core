@@ -64,20 +64,44 @@ def conectar_planilha():
 def salvar_no_banco(dados):
     """Persistência de Dados determinística."""
     try:
-        sheet = conectar_planilha()
-        if sheet:
-            linha = [
-                dados["ID"], dados["Data_Agendamento"], dados["Data_Traslado"], 
-                dados["Hora_Embarque"], dados["Passageiro"], dados["Solicitante"], 
-                dados["Centro_Custo"], dados["Origem"], dados["Destino"], 
-                dados["KM_Total"], dados["Valor_Total"], dados["Status"]
-            ]
-            sheet.append_row(linha)
-            return True
-        return False
-    except Exception as e:
-        st.error(f"Erro de I/O na nuvem: {e}")
-        return False
+                sheet = conectar_planilha()
+                if sheet:
+                    # Ingestão bruta (Bypass na trava de dicionário do gspread)
+                    dados_brutos = sheet.get_all_values()
+                    
+                    if len(dados_brutos) > 1:
+                        # Constrói o Dataframe isolando a primeira linha como cabeçalho
+                        df = pd.DataFrame(dados_brutos[1:], columns=dados_brutos[0])
+                        
+                        # Filtro Garbage Collection: Destrói colunas sem nome
+                        df = df.loc[:, df.columns != '']
+                        
+                        # Conversão forçada de string para float para o motor gráfico não colapsar
+                        df['Valor_Total'] = pd.to_numeric(df['Valor_Total'].str.replace(',', '.'), errors='coerce').fillna(0)
+                        df['KM_Total'] = pd.to_numeric(df['KM_Total'].str.replace(',', '.'), errors='coerce').fillna(0)
+                        
+                        st.markdown("### 📈 Análise Visual de Impacto")
+                        col_chart1, col_chart2 = st.columns(2)
+                        
+                        with col_chart1:
+                            st.write("Distribuição por Centro de Custo")
+                            chart_data = df.groupby('Centro_Custo')['Valor_Total'].sum()
+                            st.bar_chart(chart_data)
+                            
+                        with col_chart2:
+                            st.write("Volume de KM por Departamento")
+                            km_data = df.groupby('Centro_Custo')['KM_Total'].sum()
+                            st.area_chart(km_data)
+                            
+                        resumo_custos = df.groupby('Centro_Custo')['Valor_Total'].sum().reset_index()
+                        resumo_custos.columns = ['Centro de Custo', 'Total Faturado (R$)']
+                        st.dataframe(resumo_custos, use_container_width=True)
+                    else:
+                        st.warning("Ainda não há dados processados na base.")
+                else:
+                    st.error("Falha ao conectar com o banco de dados (Google Sheets).")
+            except Exception as e:
+                st.error(f"Erro de processamento da malha financeira: {e}")
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
     """Motor de inteligência espacial OSRM."""
