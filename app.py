@@ -18,10 +18,10 @@ CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
 NUMERO_WHATSAPP_CEO = "5551998186611" 
 
 # Tarifa Híbrida Inteligente (Value-Based Pricing B2B)
-TARIFA_BASE = 10.00
-VALOR_POR_KM = 1.30
+TARIFA_BASE = 14.00
+VALOR_POR_KM = 1.85
 VALOR_MINUTO_VIAGEM = 0.30
-VALOR_MINUTO_ESPERA = 1.50
+VALOR_MINUTO_ESPERA = 1.11
 
 CIDADES_RMPA = [
     "Porto Alegre", "Alvorada", "Cachoeirinha", "Canoas", "Eldorado do Sul", 
