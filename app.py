@@ -313,20 +313,7 @@ def tela_principal():
                     st.warning("Ainda não há dados processados na base.")
             except Exception as e:
                 st.error("Erro ao puxar a malha financeira. Verifique o Google Sheets.")
-
-    st.markdown("---")
-    with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
-        st.markdown("""
-        **1. O que é o Portal Lox?** Sistema de gestão logística da Varthoz Express.
-        **2. O preço flutua?** Não. O Lox opera com **Tarifa Dinâmica Zero**.
-        **3. Qual a antecedência?** Mínimo de **1 Turno (4 horas)**.
-        """)
-
-    st.markdown("---")
-    if st.button("Encerrar Sessão"):
-        st.session_state["autenticado"] = False
-        st.rerun()
-                
+               
     # ==========================================
     # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
     # ==========================================
@@ -344,6 +331,13 @@ def tela_principal():
         st.session_state["autenticado"] = False
         st.rerun()
 
-if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
-if not st.session_state["autenticado"]: tela_login()
-else: tela_principal()
+# ==========================================
+# MÁQUINA DE ESTADO DO SISTEMA (Fora de qualquer função)
+# ==========================================
+if "autenticado" not in st.session_state: 
+    st.session_state["autenticado"] = False
+
+if not st.session_state["autenticado"]: 
+    tela_login()
+else: 
+    tela_principal()
