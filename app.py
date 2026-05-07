@@ -144,52 +144,161 @@ def tela_login():
             st.error("Credenciais inválidas.")
 
 def tela_principal():
+    nomes_exibicao = {"tiesco": "Francesco", "sulmed": "Sulmed Administrativo"}
     usuario_atual = st.session_state['cliente']
+    nome_operador = nomes_exibicao.get(usuario_atual, usuario_atual.capitalize())
     
-    # Sistema de Abas: Separa a Operação da Gestão Financeira
-    aba_operacao, aba_financeiro = st.tabs(["🚘 Agendamento de Rotas", "📊 Gestão de Centros de Custo"])
+    st.success(f"Operador Logado: {nome_operador}")
+    st.title("🚘 Cotação e Agendamento Lox")
+    
+    # Sistema de Abas: Separa a Operação da Gestão Financeira B2B
+    aba_operacao, aba_financeiro = st.tabs(["🛣️ Agendamento de Rotas", "📊 Gestão de Centros de Custo"])
     
     with aba_operacao:
         st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 horas).")
         
         col_data, col_hora = st.columns(2)
-    with col_data:
-        data_corrida = st.date_input("Data do Traslado")
-    with col_hora:
-        hora_corrida = st.time_input("Horário do Embarque")
-    
-    # ARQUITETURA B2B: Expansão para 3 colunas para incluir o Centro de Custo
-    col_pass, col_sol, col_cc = st.columns(3)
-    
-    with col_pass:
-        passageiro = st.text_input("Nome do Passageiro / Médico(a):", placeholder="Ex: Dr. XPTO")
-    
-    with col_sol:
-        solicitante = st.text_input("Seu Nome e Contato (Para envio da NF):", placeholder="Ex: Fulano")
+        with col_data:
+            data_corrida = st.date_input("Data do Traslado")
+        with col_hora:
+            hora_corrida = st.time_input("Horário do Embarque")
         
-    with col_cc:
-        CENTROS_DE_CUSTO = [
-            "Operacional (Polo Petroquímico)", 
-            "Medicina do Trabalho", 
-            "Diretoria/Executivo", 
-            "Comercial",
-            "Outros"
-        ]
-        centro_custo = st.selectbox("Centro de Custo:", CENTROS_DE_CUSTO)
+        # ARQUITETURA B2B: Expansão para 3 colunas (Centro de Custo Ativo)
+        col_pass, col_sol, col_cc = st.columns(3)
+        
+        with col_pass:
+            passageiro = st.text_input("Passageiro / Médico(a):", placeholder="Ex: Dr. XPTO")
+        
+        with col_sol:
+            solicitante = st.text_input("Seu Nome e Contato:", placeholder="Ex: Fulano")
+            
+        with col_cc:
+            CENTROS_DE_CUSTO = [
+                "Operacional (Polo Petroquímico)", 
+                "Medicina do Trabalho", 
+                "Diretoria/Executivo", 
+                "Comercial",
+                "Outros"
+            ]
+            centro_custo = st.selectbox("Centro de Custo:", CENTROS_DE_CUSTO)
 
-    st.markdown("---")
-    tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
-    
-    # IMPORTANTE: Quando fores montar o dicionário 'dados_corrida' lá embaixo para salvar no banco,
-    # não esqueça de adicionar a chave: "Centro_Custo": centro_custo,
+        st.markdown("---")
+        tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
+        st.markdown("---")
 
-        # ... [MANTENHA A TUA LÓGICA DE ROTAS (DINÂMICA E FIXA)] ...
-        # Na hora de montar o dicionário 'dados_corrida' e 'dados_fixa', adicione o parâmetro:
-        # "Centro_Custo": centro_custo,
+        if tipo_rota == "Nova Rota (Sob Demanda)":
+            st.markdown("### 📍 Rota Dinâmica")
+            col_rua_origem, col_cid_origem = st.columns([3, 1])
+            with col_rua_origem:
+                rua_origem = st.text_input("Endereço de Embarque (Rua e Nº)", placeholder="Ex: Rua Barros Cassal, 411")
+            with col_cid_origem:
+                cid_origem = st.selectbox("Cidade (Origem)", CIDADES_RMPA, key="cid_origem")
+            origem_completa = f"{rua_origem} - {cid_origem}" if rua_origem else ""
+
+            qtd_paradas = st.selectbox("Paradas Intermediárias:", [0, 1, 2, 3])
+            paradas_completas = []
+            espera_total = 0
+            
+            for i in range(qtd_paradas):
+                st.markdown(f"**Parada {i+1}**")
+                col_r, col_c, col_e = st.columns([5, 3, 2])
+                with col_r:
+                    p_rua = st.text_input(f"Rua e Nº", key=f"p_rua_{i}")
+                with col_c:
+                    p_cid = st.selectbox(f"Cidade", CIDADES_RMPA, key=f"p_cid_{i}")
+                with col_e:
+                    e_min = st.number_input("Espera (min)", min_value=0, step=5, key=f"e_{i}")
+                if p_rua:
+                    paradas_completas.append(f"{p_rua} - {p_cid}")
+                    espera_total += e_min
+
+            col_rua_dest, col_cid_dest = st.columns([3, 1])
+            with col_rua_dest:
+                rua_dest = st.text_input("Endereço de Desembarque Final (Rua e Nº)")
+            with col_cid_dest:
+                cid_dest = st.selectbox("Cidade (Destino)", CIDADES_RMPA, key="cid_dest")
+            destino_completo = f"{rua_dest} - {cid_dest}" if rua_dest else ""
+            ida_e_volta = st.checkbox("🔄 Retornar à Base (O desembarque final será igual à Origem)")
+
+            if st.button("Calcular e Agendar", type="primary"):
+                enderecos_pesquisa = []
+                if origem_completa: enderecos_pesquisa.append(origem_completa)
+                enderecos_pesquisa.extend(paradas_completas)
+                if destino_completo: enderecos_pesquisa.append(destino_completo)
+                if ida_e_volta and origem_completa: enderecos_pesquisa.append(origem_completa)
+                
+                if len(enderecos_pesquisa) >= 2 and rua_origem and rua_dest:
+                    with st.spinner("Processando satélites e gravando no banco..."):
+                        resultado = calcular_rota_automatica(enderecos_pesquisa, espera_total)
+                    
+                    if isinstance(resultado, dict):
+                        rota_resumo = " -> ".join(enderecos_pesquisa)
+                        
+                        # Injeção no Banco com Centro de Custo
+                        dados_corrida = {
+                            "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
+                            "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                            "Data_Traslado": data_corrida.strftime("%d/%m/%Y"),
+                            "Hora_Embarque": hora_corrida.strftime("%H:%M"),
+                            "Passageiro": passageiro,
+                            "Solicitante": solicitante,
+                            "Centro_Custo": centro_custo,
+                            "Origem": origem_completa,
+                            "Destino": destino_completo if not ida_e_volta else f"Retorno para {origem_completa}",
+                            "KM_Total": resultado['km'],
+                            "Valor_Total": resultado['total'],
+                            "Status": "Pendente"
+                        }
+                        
+                        if salvar_no_banco(dados_corrida):
+                            st.markdown("### 🧾 Ticket de Cotação Lox")
+                            st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
+                            st.info("✅ Registro gravado na Matriz Financeira (Aba Gestão).")
+                            
+                            mensagem_wa = f"*NOVO AGENDAMENTO - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Solicitante:* {solicitante}\n*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n*Rota:* {rota_resumo}\n*Valor:* R$ {resultado['total']:.2f}"
+                            msg_codificada = urllib.parse.quote(mensagem_wa)
+                            link_whatsapp = f"https://wa.me/{NUMERO_WHATSAPP_CEO}?text={msg_codificada}"
+                            
+                            st.markdown(f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
+                    else: st.error(resultado)
+                else:
+                    st.warning("Preencha Origem e Destino de forma clara.")
+
+        else:
+            st.info("Rotas com valores fixos homologados.")
+            rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem Unidade Q2 (Triunfo) [Ida e Volta]", "Porto Alegre <-> Distrito Industrial (Alvorada) [Ida e Volta]"])
+            espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
+
+            if st.button("Gerar Pedido de Rota Fixa", type="primary"):
+                valor_base = 250.00 if "Braskem" in rota_fixa else 125.00
+                valor_final = valor_base + (espera_extra * VALOR_MINUTO_ESPERA)
+                
+                with st.spinner("Gravando na matriz..."):
+                    dados_fixa = {
+                        "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
+                        "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "Data_Traslado": data_corrida.strftime("%d/%m/%Y"),
+                        "Hora_Embarque": hora_corrida.strftime("%H:%M"),
+                        "Passageiro": passageiro,
+                        "Solicitante": solicitante,
+                        "Centro_Custo": centro_custo,
+                        "Origem": rota_fixa,
+                        "Destino": "Rota Fixa Homologada",
+                        "KM_Total": 0,
+                        "Valor_Total": valor_final,
+                        "Status": "Pendente"
+                    }
+                    salvou = salvar_no_banco(dados_fixa)
+                
+                if salvou:
+                    st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
+                    st.info("✅ Registro financeiro gravado com sucesso.")
+                    mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
+                    st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
 
     with aba_financeiro:
         st.subheader("Auditoria de Despesas por Departamento")
-        st.info("Aqui a Sulmed enxerga onde o dinheiro está alocado, validando a assimetria da nossa precificação.")
+        st.info("Visão exclusiva da diretoria: Mapeamento do custo de transporte por setor (Value-Based Pricing).")
         
         if st.button("Carregar Matriz Financeira"):
             try:
@@ -197,16 +306,26 @@ def tela_principal():
                 dados_tabela = sheet.get_all_records()
                 if dados_tabela:
                     df = pd.DataFrame(dados_tabela)
-                    
-                    # Agrupamento matemático de custos
                     resumo_custos = df.groupby('Centro_Custo')['Valor_Total'].sum().reset_index()
                     resumo_custos.columns = ['Centro de Custo', 'Total Faturado (R$)']
-                    
                     st.dataframe(resumo_custos, use_container_width=True)
                 else:
-                    st.warning("Sem dados processados.")
+                    st.warning("Ainda não há dados processados na base.")
             except Exception as e:
-                st.error("Erro ao puxar a malha financeira.")
+                st.error("Erro ao puxar a malha financeira. Verifique o Google Sheets.")
+
+    st.markdown("---")
+    with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
+        st.markdown("""
+        **1. O que é o Portal Lox?** Sistema de gestão logística da Varthoz Express.
+        **2. O preço flutua?** Não. O Lox opera com **Tarifa Dinâmica Zero**.
+        **3. Qual a antecedência?** Mínimo de **1 Turno (4 horas)**.
+        """)
+
+    st.markdown("---")
+    if st.button("Encerrar Sessão"):
+        st.session_state["autenticado"] = False
+        st.rerun()
                 
     # ==========================================
     # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
