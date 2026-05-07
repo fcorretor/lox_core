@@ -4,13 +4,12 @@ import requests
 from geopy.geocoders import Nominatim
 from datetime import datetime
 import urllib.parse
-import json
 import gspread
-import pandas as pd # Necessário para a matriz do Centro de Custos
+import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 3.0 - Arquitetura de Custos
+# Versão: 3.0 - Arquitetura de Custos (Blindada)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -28,23 +27,17 @@ CIDADES_RMPA = [
     "Esteio", "Gravataí", "Guaíba", "Novo Hamburgo", "São Leopoldo", "Sapucaia do Sul", "Triunfo", "Viamão"
 ]
 
-# 1. NOVA ESTRUTURA DE CENTROS DE CUSTO
 CENTROS_DE_CUSTO = [
     "Operacional (Polo Petroquímico)", 
     "Medicina do Trabalho", 
     "Diretoria/Executivo", 
-    "Comercial"
+    "Comercial",
+    "Outros"
 ]
 
 def conectar_planilha():
-    """
-    Engenharia de Conexão: Modo Produção (Varthoz HQ)
-    Extrai as credenciais diretamente do mapeamento TOML do Streamlit,
-    blindando a aplicação contra falhas de I/O de arquivos locais.
-    """
+    """Conexão Varthoz HQ com Secrets Manager"""
     try:
-        # Extração determinística das chaves aninhadas no secrets.toml
-        # Monta o dicionário em tempo de execução (Bootstrapping)
         credentials_dict = {
             "type": st.secrets["connections"]["gsheets"]["type"],
             "project_id": st.secrets["connections"]["gsheets"]["project_id"],
@@ -58,37 +51,26 @@ def conectar_planilha():
             "client_x509_cert_url": st.secrets["connections"]["gsheets"]["client_x509_cert_url"],
             "universe_domain": st.secrets["connections"]["gsheets"].get("universe_domain", "googleapis.com")
         }
-        
-        # Autenticação direta via dicionário na memória
         client = gspread.service_account_from_dict(credentials_dict)
-        
-        # Conexão com o alvo B2B
         sheet = client.open_by_key("1rwrlPpSCc89nc12fP26oCNhWUhKtiKVbIOiCbFWqV44").worksheet("Página1")
         return sheet
-
     except KeyError as k_err:
         st.error("Erro Crítico: Chave ausente no secrets.toml.")
-        print(f"[FALHA DE ARQUITETURA] Chave não encontrada: {k_err}")
         return None
     except Exception as e:
         st.error("Falha no handshake com o Google Cloud IAM.")
-        print("\n--- ERRO CABELUDO DE CONEXÃO ---")
-        traceback.print_exc()
-        print("--------------------------------\n")
         return None
 
 def salvar_no_banco(dados):
-    """Atualizado para suportar a coluna Centro_Custo"""
+    """Persistência de Dados determinística."""
     try:
         sheet = conectar_planilha()
         if sheet:
-            # ATENÇÃO: Adicione a coluna 'Centro_Custo' na sua planilha Google
             linha = [
                 dados["ID"], dados["Data_Agendamento"], dados["Data_Traslado"], 
                 dados["Hora_Embarque"], dados["Passageiro"], dados["Solicitante"], 
-                dados["Centro_Custo"], # <--- NOVA VARIÁVEL AQUI
-                dados["Origem"], dados["Destino"], dados["KM_Total"], 
-                dados["Valor_Total"], dados["Status"]
+                dados["Centro_Custo"], dados["Origem"], dados["Destino"], 
+                dados["KM_Total"], dados["Valor_Total"], dados["Status"]
             ]
             sheet.append_row(linha)
             return True
@@ -98,12 +80,10 @@ def salvar_no_banco(dados):
         return False
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
+    """Motor de inteligência espacial OSRM."""
     try:
-        # ARQUITETURA VARTHOZ: Aumentando o timeout para 10 segundos.
-        # Isso impede o 'ReadTimeoutError' exibido no teu print.
         geolocator = Nominatim(user_agent="lox_routing_b2b_v10", timeout=10) 
         coordenadas_list = []
-        
         for end in enderecos:
             if end.strip() == "": continue
             query = f"{end}, Rio Grande do Sul, Brasil"
@@ -115,8 +95,6 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
 
         coords_string = ";".join(coordenadas_list)
         url_osrm = f"http://router.project-osrm.org/route/v1/driving/{coords_string}?overview=false"
-        
-        # Injeção de timeout também na requisição HTTP da rota
         resposta = requests.get(url_osrm, timeout=10).json() 
         if resposta.get("code") != "Ok": return "Erro ao traçar rota veicular."
 
@@ -125,7 +103,7 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
         custo = TARIFA_BASE + (km * VALOR_POR_KM) + (minutos_reais * VALOR_MINUTO_VIAGEM) + (total_minutos_espera * VALOR_MINUTO_ESPERA)
         return {"km": round(km, 1), "minutos": round(minutos_reais, 0), "total": round(custo, 2)}
     except requests.exceptions.Timeout:
-        return "Falha Crítica: O satélite de roteamento não respondeu a tempo. Tente novamente."
+        return "Falha Crítica: O satélite de roteamento não respondeu a tempo."
     except Exception as e:
         return f"Falha no ecossistema de roteamento: {e}"
 
@@ -151,36 +129,19 @@ def tela_principal():
     st.success(f"Operador Logado: {nome_operador}")
     st.title("🚘 Cotação e Agendamento Lox")
     
-    # Sistema de Abas: Separa a Operação da Gestão Financeira B2B
     aba_operacao, aba_financeiro = st.tabs(["🛣️ Agendamento de Rotas", "📊 Gestão de Centros de Custo"])
     
     with aba_operacao:
         st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 horas).")
         
         col_data, col_hora = st.columns(2)
-        with col_data:
-            data_corrida = st.date_input("Data do Traslado")
-        with col_hora:
-            hora_corrida = st.time_input("Horário do Embarque")
+        with col_data: data_corrida = st.date_input("Data do Traslado")
+        with col_hora: hora_corrida = st.time_input("Horário do Embarque")
         
-        # ARQUITETURA B2B: Expansão para 3 colunas (Centro de Custo Ativo)
         col_pass, col_sol, col_cc = st.columns(3)
-        
-        with col_pass:
-            passageiro = st.text_input("Passageiro / Médico(a):", placeholder="Ex: Dr. XPTO")
-        
-        with col_sol:
-            solicitante = st.text_input("Seu Nome e Contato:", placeholder="Ex: Fulano")
-            
-        with col_cc:
-            CENTROS_DE_CUSTO = [
-                "Operacional (Polo Petroquímico)", 
-                "Medicina do Trabalho", 
-                "Diretoria/Executivo", 
-                "Comercial",
-                "Outros"
-            ]
-            centro_custo = st.selectbox("Centro de Custo:", CENTROS_DE_CUSTO)
+        with col_pass: passageiro = st.text_input("Passageiro / Médico(a):", placeholder="Ex: Dr. XPTO")
+        with col_sol: solicitante = st.text_input("Seu Nome e Contato:", placeholder="Ex: Fulano")
+        with col_cc: centro_custo = st.selectbox("Centro de Custo:", CENTROS_DE_CUSTO)
 
         st.markdown("---")
         tipo_rota = st.radio("Selecione a Modalidade do Traslado:", ["Nova Rota (Sob Demanda)", "Rota Homologada (Frequente)"])
@@ -189,10 +150,8 @@ def tela_principal():
         if tipo_rota == "Nova Rota (Sob Demanda)":
             st.markdown("### 📍 Rota Dinâmica")
             col_rua_origem, col_cid_origem = st.columns([3, 1])
-            with col_rua_origem:
-                rua_origem = st.text_input("Endereço de Embarque (Rua e Nº)", placeholder="Ex: Rua Barros Cassal, 411")
-            with col_cid_origem:
-                cid_origem = st.selectbox("Cidade (Origem)", CIDADES_RMPA, key="cid_origem")
+            with col_rua_origem: rua_origem = st.text_input("Endereço de Embarque (Rua e Nº)", placeholder="Ex: Rua Barros Cassal, 411")
+            with col_cid_origem: cid_origem = st.selectbox("Cidade (Origem)", CIDADES_RMPA, key="cid_origem")
             origem_completa = f"{rua_origem} - {cid_origem}" if rua_origem else ""
 
             qtd_paradas = st.selectbox("Paradas Intermediárias:", [0, 1, 2, 3])
@@ -202,21 +161,16 @@ def tela_principal():
             for i in range(qtd_paradas):
                 st.markdown(f"**Parada {i+1}**")
                 col_r, col_c, col_e = st.columns([5, 3, 2])
-                with col_r:
-                    p_rua = st.text_input(f"Rua e Nº", key=f"p_rua_{i}")
-                with col_c:
-                    p_cid = st.selectbox(f"Cidade", CIDADES_RMPA, key=f"p_cid_{i}")
-                with col_e:
-                    e_min = st.number_input("Espera (min)", min_value=0, step=5, key=f"e_{i}")
+                with col_r: p_rua = st.text_input(f"Rua e Nº", key=f"p_rua_{i}")
+                with col_c: p_cid = st.selectbox(f"Cidade", CIDADES_RMPA, key=f"p_cid_{i}")
+                with col_e: e_min = st.number_input("Espera (min)", min_value=0, step=5, key=f"e_{i}")
                 if p_rua:
                     paradas_completas.append(f"{p_rua} - {p_cid}")
                     espera_total += e_min
 
             col_rua_dest, col_cid_dest = st.columns([3, 1])
-            with col_rua_dest:
-                rua_dest = st.text_input("Endereço de Desembarque Final (Rua e Nº)")
-            with col_cid_dest:
-                cid_dest = st.selectbox("Cidade (Destino)", CIDADES_RMPA, key="cid_dest")
+            with col_rua_dest: rua_dest = st.text_input("Endereço de Desembarque Final (Rua e Nº)")
+            with col_cid_dest: cid_dest = st.selectbox("Cidade (Destino)", CIDADES_RMPA, key="cid_dest")
             destino_completo = f"{rua_dest} - {cid_dest}" if rua_dest else ""
             ida_e_volta = st.checkbox("🔄 Retornar à Base (O desembarque final será igual à Origem)")
 
@@ -233,8 +187,6 @@ def tela_principal():
                     
                     if isinstance(resultado, dict):
                         rota_resumo = " -> ".join(enderecos_pesquisa)
-                        
-                        # Injeção no Banco com Centro de Custo
                         dados_corrida = {
                             "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
                             "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -296,7 +248,7 @@ def tela_principal():
                     mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
                     st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
 
-with aba_financeiro:
+    with aba_financeiro:
         st.subheader("Auditoria de Despesas por Departamento")
         st.info("Visão exclusiva da diretoria: Mapeamento do custo de transporte por setor (Value-Based Pricing).")
         
@@ -331,9 +283,6 @@ with aba_financeiro:
             except Exception as e:
                 st.error(f"Erro de processamento da malha financeira: {e}")
 
-    # ---------------------------------------------------------
-    # FIM DA FUNÇÃO TELA_PRINCIPAL (EXATAMENTE 4 ESPAÇOS DE RECUO)
-    # ---------------------------------------------------------
     st.markdown("---")
     with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
         st.markdown("""
@@ -348,8 +297,7 @@ with aba_financeiro:
         st.rerun()
 
 # ==========================================
-# MÁQUINA DE ESTADO DO SISTEMA 
-# (ZERO ESPAÇOS - COLADO NA MARGEM ESQUERDA)
+# MÁQUINA DE ESTADO DO SISTEMA
 # ==========================================
 if "autenticado" not in st.session_state: 
     st.session_state["autenticado"] = False
