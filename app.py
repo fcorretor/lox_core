@@ -9,7 +9,7 @@ import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.4 - Trajeto Explícito / Recibo Gov
+# Versão: 5.5 - Layout Fracionado & Auditoria de Espera
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -105,15 +105,45 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
     except Exception as e:
         return f"Falha no ecossistema de roteamento: {e}"
 
-def gerar_recibo_texto(dados, espera_total, rota_completa=None):
-    """Gera o Recibo com Trajeto Detalhado B2B"""
+def gerar_recibo_texto(dados, espera_total, enderecos=None, ida_e_volta=False):
+    """Gera o Recibo Fracionado em Linhas com Auditoria Matemática Baseada em Índices"""
     data_emissao = datetime.now().strftime("%d/%m/%Y")
     
-    # Se uma rota_completa (com as setinhas ->) for enviada, usa ela. Senão, usa Origem/Destino padrão.
-    if rota_completa:
-        detalhe_rota = f"Trajeto         : {rota_completa}"
+    # 1. Engenharia de Construção do Trajeto Limpo por Linhas
+    if dados['Destino'] == "Rota Fixa Homologada":
+        detalhe_rota = f"Rota Homologada  : {dados['Origem']}"
+    elif enderecos and len(enderecos) >= 2:
+        linhas_trajeto = [f"Embarque         : {enderecos[0]}"]
+        
+        if ida_e_volta:
+            # Estrutura: [Origem, Paradas..., Destino Final, Retorno Base]
+            paradas = enderecos[1:-2]
+            destino_final = enderecos[-2]
+            retorno_base = enderecos[-1]
+            
+            for idx, p in enumerate(paradas):
+                linhas_trajeto.append(f"Parada {idx+1}         : {p}")
+            linhas_trajeto.append(f"Destino          : {destino_final}")
+            linhas_trajeto.append(f"Retorno          : {retorno_base}")
+        else:
+            # Estrutura: [Origem, Paradas..., Destino Final]
+            paradas = enderecos[1:-1]
+            destino_final = enderecos[-1]
+            
+            for idx, p in enumerate(paradas):
+                linhas_trajeto.append(f"Parada {idx+1}         : {p}")
+            linhas_trajeto.append(f"Destino          : {destino_final}")
+            
+        detalhe_rota = "\n".join(linhas_trajeto)
     else:
-        detalhe_rota = f"Origem          : {dados['Origem']}\nDestino         : {dados['Destino']}"
+        detalhe_rota = f"Embarque         : {dados['Origem']}\nDestino          : {dados['Destino']}"
+
+    # 2. Injeção Condicional da Regra de Espera Técnica com Índices Predefinidos
+    if espera_total > 0:
+        custo_calculado_espera = espera_total * VALOR_MINUTO_ESPERA
+        linha_espera = f"Espera Técnica   : {espera_total} minutos (Índice Homologado: R$ {VALOR_MINUTO_ESPERA:.2f}/min | Subtotal: R$ {custo_calculado_espera:.2f})"
+    else:
+        linha_espera = "Espera Técnica   : 0 minutos (Sem custos adicionais de retenção em base)"
 
     recibo = f"""=====================================================================
 RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS
@@ -133,7 +163,7 @@ veículo particular, conforme detalhamento abaixo:
 Data do Traslado: {dados['Data_Traslado']} às {dados['Hora_Embarque']}
 Passageiro(s)   : {dados['Passageiro']}
 {detalhe_rota}
-Espera Técnica  : {espera_total} minutos
+{linha_espera}
 ---------------------------------------------------------------------
 VALOR TOTAL PELOS SERVIÇOS PRESTADOS: R$ {dados['Valor_Total']:.2f}
 ---------------------------------------------------------------------
@@ -177,7 +207,7 @@ def tela_principal():
     aba_operacao, aba_financeiro = st.tabs(["🛣️ Operação (Rotas)", "📊 Gestão Financeira (CC)"])
     
     with aba_operacao:
-        st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 horas).")
+        st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 hours).")
         
         col_data, col_hora = st.columns(2)
         with col_data: data_corrida = st.date_input("Data do Traslado")
@@ -232,8 +262,6 @@ def tela_principal():
                     
                     if isinstance(resultado, dict):
                         rota_resumo = " -> ".join(enderecos_pesquisa)
-                        
-                        # Ajuste para auditoria no banco de dados
                         destino_bd = f"{destino_completo} (Ida e Volta)" if ida_e_volta else destino_completo
                         
                         dados_corrida = {
@@ -257,8 +285,8 @@ def tela_principal():
                             st.info("✅ Registro gravado na Matriz Financeira (Aba Gestão).")
                             
                             st.markdown("### 🧾 Recibo Oficial (Copie, cole no Word e assine no Gov.br)")
-                            # Enviamos a rota_resumo para o Recibo
-                            texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, rota_resumo)
+                            # Injeção das variáveis de controle de layout no recibo
+                            texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, enderecos_pesquisa, ida_e_volta)
                             st.code(texto_recibo, language="markdown")
                             
                             mensagem_wa = f"*NOVO AGENDAMENTO - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Solicitante:* {solicitante}\n*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n*Rota:* {rota_resumo}\n*Valor:* R$ {resultado['total']:.2f}"
@@ -301,7 +329,7 @@ def tela_principal():
                     st.info("✅ Registro financeiro gravado com sucesso.")
                     
                     st.markdown("### 🧾 Recibo Oficial (Copie, cole no Word e assine no Gov.br)")
-                    texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra, rota_fixa)
+                    texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra)
                     st.code(texto_recibo_fixo, language="markdown")
 
                     mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
