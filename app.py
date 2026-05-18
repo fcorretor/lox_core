@@ -9,7 +9,7 @@ import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.2 - Faturamento & Recibo Oficial
+# Versão: 5.3 - Recibo Padrão Gov.br / Sulmed
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -106,29 +106,44 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
         return f"Falha no ecossistema de roteamento: {e}"
 
 def gerar_recibo_texto(dados, espera_total):
-    """Engine de formatação de Recibo B2B (Value-Based Pricing)"""
-    recibo = f"""===================================================
- RECIBO OFICIAL DE TRASLADO CORPORATIVO
- VARTHOZ EXPRESS - LOGÍSTICA EXECUTIVA
-===================================================
-ID da Transação : {dados['ID']}
-Data do Serviço : {dados['Data_Traslado']} às {dados['Hora_Embarque']}
-Tomador         : Sulmed Administrativo / {dados['Solicitante']}
-Centro de Custo : {dados['Centro_Custo']}
----------------------------------------------------
-PASSAGEIRO      : {dados['Passageiro']}
-ORIGEM          : {dados['Origem']}
-DESTINO         : {dados['Destino']}
-ESPERA TÉCNICA  : {espera_total} minutos
----------------------------------------------------
-VALOR TOTAL     : R$ {dados['Valor_Total']:.2f}
----------------------------------------------------
-DECLARAÇÃO:
-Atestamos para os devidos fins que o serviço de
-deslocamento executivo acima descrito foi prestado
-em sua totalidade. Serviço homologado sob tarifa
-dinâmica zero. Rastreabilidade de satélite arquivada.
-==================================================="""
+    """Gera o Recibo com a estrutura exata exigida pelo financeiro da Sulmed"""
+    data_emissao = datetime.now().strftime("%d/%m/%Y")
+    recibo = f"""=====================================================================
+RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS
+=====================================================================
+Nº da Transação : {dados['ID']}
+Data de Emissão : {data_emissao}
+
+TOMADOR DO SERVIÇO:
+Razão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.
+CNPJ: 90.747.908/0001-56
+Solicitante: {dados['Solicitante']} (Centro de Custo: {dados['Centro_Custo']})
+---------------------------------------------------------------------
+DESCRIÇÃO DETALHADA DOS SERVIÇOS:
+Serviços de logística e transporte executivo de pessoal, realizados em
+veículo particular, conforme detalhamento abaixo:
+
+Data do Traslado: {dados['Data_Traslado']} às {dados['Hora_Embarque']}
+Passageiro(s)   : {dados['Passageiro']}
+Origem          : {dados['Origem']}
+Destino         : {dados['Destino']}
+Espera Técnica  : {espera_total} minutos
+---------------------------------------------------------------------
+VALOR TOTAL PELOS SERVIÇOS PRESTADOS: R$ {dados['Valor_Total']:.2f}
+---------------------------------------------------------------------
+Declaro que a quitação se dará mediante o crédito em conta.
+
+DADOS PARA PAGAMENTO:
+Chave PIX: [REDACTED-PIX-CPF]
+Banco: 0260 - Nu Pagamentos S.A. - Instituição de Pagamento
+Favorecido: Francesco de Andrade Apratto
+CPF: [REDACTED-PIX-CPF]
+
+---------------------------------------------------------------------
+FRANCESCO DE ANDRADE APRATTO
+Gestão Logística & Projetos
+(Aplicar Assinatura Digital Gov.br neste espaço)
+====================================================================="""
     return recibo
 
 def tela_login():
@@ -227,11 +242,11 @@ def tela_principal():
                         }
                         
                         if salvar_no_banco(dados_corrida):
+                            st.markdown("### 🧾 Ticket de Cotação Lox")
                             st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
                             st.info("✅ Registro gravado na Matriz Financeira (Aba Gestão).")
                             
-                            # EXIBIÇÃO DO RECIBO OFICIAL PARA O FINANCEIRO
-                            st.markdown("### 🧾 Recibo Oficial (Pronto para Cópia)")
+                            st.markdown("### 🧾 Recibo Oficial (Copie, cole no Word e assine no Gov.br)")
                             texto_recibo = gerar_recibo_texto(dados_corrida, espera_total)
                             st.code(texto_recibo, language="markdown")
                             
@@ -274,8 +289,7 @@ def tela_principal():
                     st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                     st.info("✅ Registro financeiro gravado com sucesso.")
                     
-                    # EXIBIÇÃO DO RECIBO OFICIAL (ROTA FIXA)
-                    st.markdown("### 🧾 Recibo Oficial (Pronto para Cópia)")
+                    st.markdown("### 🧾 Recibo Oficial (Copie, cole no Word e assine no Gov.br)")
                     texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra)
                     st.code(texto_recibo_fixo, language="markdown")
 
