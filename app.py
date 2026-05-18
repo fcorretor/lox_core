@@ -9,7 +9,7 @@ import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.1 - Produção Definitiva (Full Core)
+# Versão: 5.2 - Faturamento & Recibo Oficial
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -104,6 +104,32 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
         return "Falha Crítica: O satélite não respondeu a tempo."
     except Exception as e:
         return f"Falha no ecossistema de roteamento: {e}"
+
+def gerar_recibo_texto(dados, espera_total):
+    """Engine de formatação de Recibo B2B (Value-Based Pricing)"""
+    recibo = f"""===================================================
+ RECIBO OFICIAL DE TRASLADO CORPORATIVO
+ VARTHOZ EXPRESS - LOGÍSTICA EXECUTIVA
+===================================================
+ID da Transação : {dados['ID']}
+Data do Serviço : {dados['Data_Traslado']} às {dados['Hora_Embarque']}
+Tomador         : Sulmed Administrativo / {dados['Solicitante']}
+Centro de Custo : {dados['Centro_Custo']}
+---------------------------------------------------
+PASSAGEIRO      : {dados['Passageiro']}
+ORIGEM          : {dados['Origem']}
+DESTINO         : {dados['Destino']}
+ESPERA TÉCNICA  : {espera_total} minutos
+---------------------------------------------------
+VALOR TOTAL     : R$ {dados['Valor_Total']:.2f}
+---------------------------------------------------
+DECLARAÇÃO:
+Atestamos para os devidos fins que o serviço de
+deslocamento executivo acima descrito foi prestado
+em sua totalidade. Serviço homologado sob tarifa
+dinâmica zero. Rastreabilidade de satélite arquivada.
+==================================================="""
+    return recibo
 
 def tela_login():
     st.title("🔒 Lox")
@@ -201,15 +227,19 @@ def tela_principal():
                         }
                         
                         if salvar_no_banco(dados_corrida):
-                            st.markdown("### 🧾 Ticket de Cotação Lox")
                             st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
                             st.info("✅ Registro gravado na Matriz Financeira (Aba Gestão).")
+                            
+                            # EXIBIÇÃO DO RECIBO OFICIAL PARA O FINANCEIRO
+                            st.markdown("### 🧾 Recibo Oficial (Pronto para Cópia)")
+                            texto_recibo = gerar_recibo_texto(dados_corrida, espera_total)
+                            st.code(texto_recibo, language="markdown")
                             
                             mensagem_wa = f"*NOVO AGENDAMENTO - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Solicitante:* {solicitante}\n*Data:* {data_corrida.strftime('%d/%m/%Y')} às {hora_corrida.strftime('%H:%M')}\n*Rota:* {rota_resumo}\n*Valor:* R$ {resultado['total']:.2f}"
                             msg_codificada = urllib.parse.quote(mensagem_wa)
                             link_whatsapp = f"https://wa.me/{NUMERO_WHATSAPP_CEO}?text={msg_codificada}"
                             
-                            st.markdown(f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
+                            st.markdown(f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 APROVAR E ENVIAR WHATSAPP</button></a>', unsafe_allow_html=True)
                     else: st.error(resultado)
                 else:
                     st.warning("Preencha Origem e Destino de forma clara.")
@@ -243,8 +273,14 @@ def tela_principal():
                 if salvou:
                     st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                     st.info("✅ Registro financeiro gravado com sucesso.")
+                    
+                    # EXIBIÇÃO DO RECIBO OFICIAL (ROTA FIXA)
+                    st.markdown("### 🧾 Recibo Oficial (Pronto para Cópia)")
+                    texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra)
+                    st.code(texto_recibo_fixo, language="markdown")
+
                     mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
-                    st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 ENVIAR AGENDAMENTO VIA WHATSAPP</button></a>', unsafe_allow_html=True)
+                    st.markdown(f'<a href="https://wa.me/{NUMERO_WHATSAPP_CEO}?text={urllib.parse.quote(mensagem_wa_fixa)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">📲 APROVAR E ENVIAR WHATSAPP</button></a>', unsafe_allow_html=True)
 
     with aba_financeiro:
         st.subheader("Auditoria de Despesas por Departamento")
@@ -297,6 +333,7 @@ def tela_principal():
         **1. O que é o Portal Lox?** Sistema de gestão logística da Varthoz Express.
         **2. O preço flutua?** Não. O Lox opera com **Tarifa Dinâmica Zero**.
         **3. Qual a antecedência?** Mínimo de **1 Turno (4 horas)**.
+        **4. Como recebo a Nota Fiscal?** Após o agendamento, o Recibo Oficial é gerado automaticamente em tela para o seu financeiro.
         """)
 
     st.markdown("---")
