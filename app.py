@@ -24,7 +24,8 @@ VALOR_MINUTO_ESPERA = 1.20
 
 CIDADES_RMPA = [
     "Porto Alegre", "Alvorada", "Cachoeirinha", "Canoas", "Eldorado do Sul", 
-    "Esteio", "Gravataí", "Guaíba", "Novo Hamburgo", "São Leopoldo", "Sapucaia do Sul", "Triunfo", "Viamão"
+    "Esteio", "Gravataí", "Guaíba", "Novo Hamburgo", "Santo Antônio da Patrulha", 
+    "São Leopoldo", "Sapucaia do Sul", "Triunfo", "Viamão"
 ]
 
 CENTROS_DE_CUSTO = [
