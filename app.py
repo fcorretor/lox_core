@@ -9,7 +9,7 @@ import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.7 - Ida e Volta Descontínua (Horários)
+# Versão: 5.8 - Precisão de Horários (Step 1 min)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -110,7 +110,6 @@ def gerar_recibo_texto(dados, espera_total, enderecos=None):
     """Engine Dinâmica de Formatação - Inclui Horários Descontínuos"""
     data_emissao = datetime.now().strftime("%d/%m/%Y")
     
-    # 1. Tratamento de Rotas Homologadas com ou sem horário de volta
     if dados['Destino'] == "Rota Fixa Homologada":
         if "(Ida)" in dados['Hora_Embarque']:
             h_ida = dados['Hora_Embarque'].split("(Ida)")[0].strip()
@@ -121,7 +120,6 @@ def gerar_recibo_texto(dados, espera_total, enderecos=None):
         else:
             detalhe_rota = f"Rota Homologada  : {dados['Origem']}"
             
-    # 2. Tratamento de Rotas Dinâmicas
     elif enderecos and len(enderecos) >= 2:
         linhas_trajeto = [f"Embarque         : {enderecos[0]}"]
         is_circular = (enderecos[-1] == enderecos[0] and len(enderecos) > 1)
@@ -145,7 +143,6 @@ def gerar_recibo_texto(dados, espera_total, enderecos=None):
     else:
         detalhe_rota = f"Embarque         : {dados['Origem']}\nDestino          : {dados['Destino']}"
 
-    # Regra de Espera
     if espera_total > 0:
         custo_espera = espera_total * VALOR_MINUTO_ESPERA
         linha_espera = f"Espera Técnica   : {espera_total} minutos (Índice: R$ {VALOR_MINUTO_ESPERA:.2f}/min | Subtotal: R$ {custo_espera:.2f})"
@@ -216,13 +213,13 @@ def tela_principal():
     with aba_operacao:
         st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 horas).")
         
-        # INJEÇÃO DOS DOIS HORÁRIOS (IDA E VOLTA)
+        # INJEÇÃO DO PARAMETRO STEP=60 PARA LIBERAR HORÁRIOS QUEBRADOS MINUTO A MINUTO
         col_data, col_hora_ida, col_hora_volta = st.columns(3)
         with col_data: data_corrida = st.date_input("Data do Traslado")
-        with col_hora_ida: hora_corrida = st.time_input("Horário de Ida")
+        with col_hora_ida: hora_corrida = st.time_input("Horário de Ida", step=60)
         with col_hora_volta: 
             tem_volta = st.checkbox("Incluir Hora da Volta?")
-            hora_retorno = st.time_input("Horário da Volta") if tem_volta else None
+            hora_retorno = st.time_input("Horário da Volta", step=60) if tem_volta else None
             
         hora_db_str = f"{hora_corrida.strftime('%H:%M')} (Ida) | {hora_retorno.strftime('%H:%M')} (Volta)" if hora_retorno else hora_corrida.strftime("%H:%M")
         
@@ -285,7 +282,7 @@ def tela_principal():
                             "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
                             "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
                             "Data_Traslado": data_corrida.strftime("%d/%m/%Y"),
-                            "Hora_Embarque": hora_db_str, # Injeção do horário combinado
+                            "Hora_Embarque": hora_db_str,
                             "Passageiro": passageiro,
                             "Solicitante": solicitante,
                             "Centro_Custo": centro_custo,
@@ -328,7 +325,7 @@ def tela_principal():
                         "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
                         "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "Data_Traslado": data_corrida.strftime("%d/%m/%Y"),
-                        "Hora_Embarque": hora_db_str, # Injeção do horário combinado
+                        "Hora_Embarque": hora_db_str,
                         "Passageiro": passageiro,
                         "Solicitante": solicitante,
                         "Centro_Custo": centro_custo,
@@ -393,9 +390,6 @@ def tela_principal():
             except Exception as e:
                 st.error(f"Erro de processamento da malha financeira: {e}")
 
-    # ==========================================
-    # SEÇÃO FAQ - O IMPACTO VISUAL DE SUPORTE
-    # ==========================================
     st.markdown("---")
     with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
         st.markdown("""
