@@ -7,9 +7,16 @@ import urllib.parse
 import gspread
 import pandas as pd
 
+# Tentativa de importação do motor de PDF (Defensiva)
+try:
+    from fpdf import FPDF
+    HAS_FPDF = True
+except ImportError:
+    HAS_FPDF = False
+
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.8 - Precisão de Horários (Step 1 min)
+# Versão: 5.9 - Exportação Nativa PDF (Gov.br Ready)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -107,7 +114,6 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
         return f"Falha no ecossistema de roteamento: {e}"
 
 def gerar_recibo_texto(dados, espera_total, enderecos=None):
-    """Engine Dinâmica de Formatação - Inclui Horários Descontínuos"""
     data_emissao = datetime.now().strftime("%d/%m/%Y")
     
     if dados['Destino'] == "Rota Fixa Homologada":
@@ -115,8 +121,7 @@ def gerar_recibo_texto(dados, espera_total, enderecos=None):
             h_ida = dados['Hora_Embarque'].split("(Ida)")[0].strip()
             h_volta = dados['Hora_Embarque'].split("|")[1].replace("(Volta)", "").strip()
             destino_clean = "Triunfo (Braskem)" if "Braskem" in dados['Origem'] else "Alvorada (Distrito Industrial)"
-            
-            detalhe_rota = f"IDA (Saída {h_ida})     : Porto Alegre -> {destino_clean}\nVOLTA (Saída {h_volta})   : {destino_clean} -> Porto Alegre\nRef. Rota        : {dados['Origem']}"
+            detalhe_rota = f"IDA (Saída {h_ida}): Porto Alegre -> {destino_clean}\nVOLTA (Saída {h_volta}): {destino_clean} -> Porto Alegre\nRef. Rota: {dados['Origem']}"
         else:
             detalhe_rota = f"Rota Homologada  : {dados['Origem']}"
             
@@ -186,6 +191,36 @@ Gestão Logística & Projetos
 ====================================================================="""
     return recibo
 
+def gerar_pdf_bytes(texto_recibo):
+    """Lê a String estruturada e desenha o arquivo PDF físico"""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_margins(15, 15, 15)
+    
+    # Tratamento de acentos para o motor do PDF
+    texto_latin = texto_recibo.encode('latin-1', 'replace').decode('latin-1')
+    
+    for linha in texto_latin.split('\n'):
+        if "RECIBO DE PRESTAÇÃO DE SERVIÇOS" in linha:
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 6, linha, ln=True, align='C')
+        elif "VALOR TOTAL" in linha or "TOMADOR DO SERVIÇO" in linha or "DADOS PARA PAGAMENTO" in linha or "FRANCESCO DE" in linha:
+            pdf.set_font("Arial", 'B', 10)
+            pdf.cell(0, 6, linha, ln=True)
+        elif "===" in linha or "---" in linha:
+            pdf.set_font("Courier", '', 10)
+            pdf.cell(0, 4, linha, ln=True, align='C')
+        else:
+            pdf.set_font("Arial", '', 10)
+            pdf.multi_cell(0, 5, linha)
+            
+    try:
+        # FPDF Versão 1.x
+        return pdf.output(dest='S').encode('latin-1')
+    except Exception:
+        # FPDF Versão 2.x
+        return bytes(pdf.output())
+
 def tela_login():
     st.title("🔒 Lox")
     st.markdown("**Sistema Integrado de Roteamento Executivo**")
@@ -213,7 +248,6 @@ def tela_principal():
     with aba_operacao:
         st.warning("⏱️ REGRA OPERACIONAL: Agendamentos com antecedência mínima de 1 Turno (4 horas).")
         
-        # INJEÇÃO DO PARAMETRO STEP=60 PARA LIBERAR HORÁRIOS QUEBRADOS MINUTO A MINUTO
         col_data, col_hora_ida, col_hora_volta = st.columns(3)
         with col_data: data_corrida = st.date_input("Data do Traslado")
         with col_hora_ida: hora_corrida = st.time_input("Horário de Ida", step=60)
@@ -277,7 +311,6 @@ def tela_principal():
                     
                     if isinstance(resultado, dict):
                         rota_resumo = " -> ".join(enderecos_pesquisa)
-                        
                         dados_corrida = {
                             "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
                             "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -294,12 +327,23 @@ def tela_principal():
                         }
                         
                         if salvar_no_banco(dados_corrida):
-                            st.markdown("### 🧾 Ticket de Cotação Lox")
                             st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
-                            st.info("✅ Registro gravado na Matriz Financeira (Aba Gestão).")
-                            
-                            st.markdown("### 🧾 Recibo Oficial (Copie, cole no Word e assine no Gov.br)")
                             texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, enderecos_pesquisa)
+                            
+                            if HAS_FPDF:
+                                pdf_bytes = gerar_pdf_bytes(texto_recibo)
+                                st.download_button(
+                                    label="📄 Baixar Recibo em PDF",
+                                    data=pdf_bytes,
+                                    file_name=f"Francesco_NF_RPSRD{dados_corrida['ID']}.pdf",
+                                    mime="application/pdf",
+                                    type="primary",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.error("⚠️ Biblioteca 'fpdf' não instalada. Execute 'pip install fpdf' para ativar os downloads.")
+                            
+                            st.markdown("### Pré-visualização do Recibo")
                             st.code(texto_recibo, language="markdown")
                             
                             mensagem_wa = f"*NOVO AGENDAMENTO - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Solicitante:* {solicitante}\n*Data:* {data_corrida.strftime('%d/%m/%Y')}\n*Horários:* {hora_db_str}\n*Rota:* {rota_resumo}\n*Valor:* R$ {resultado['total']:.2f}"
@@ -339,10 +383,22 @@ def tela_principal():
                 
                 if salvou:
                     st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
-                    st.info("✅ Registro financeiro gravado com sucesso.")
-                    
-                    st.markdown("### 🧾 Recibo Oficial (Copie, cole no Word e assine no Gov.br)")
                     texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra)
+                    
+                    if HAS_FPDF:
+                        pdf_bytes_fixo = gerar_pdf_bytes(texto_recibo_fixo)
+                        st.download_button(
+                            label="📄 Baixar Recibo em PDF",
+                            data=pdf_bytes_fixo,
+                            file_name=f"Francesco_NF_RPSRD{dados_fixa['ID']}.pdf",
+                            mime="application/pdf",
+                            type="primary",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error("⚠️ Biblioteca 'fpdf' não instalada. Execute 'pip install fpdf' para ativar os downloads.")
+                    
+                    st.markdown("### Pré-visualização do Recibo")
                     st.code(texto_recibo_fixo, language="markdown")
 
                     mensagem_wa_fixa = f"*AGENDAMENTO ROTA FIXA - LOX B2B*\n\n*CC:* {centro_custo}\n*Passageiro:* {passageiro}\n*Horários:* {hora_db_str}\n*Rota:* {rota_fixa}\n*Valor:* R$ {valor_final:.2f}"
@@ -389,15 +445,6 @@ def tela_principal():
                     st.error("Falha ao conectar com o banco de dados (Google Sheets).")
             except Exception as e:
                 st.error(f"Erro de processamento da malha financeira: {e}")
-
-    st.markdown("---")
-    with st.expander("❓ Perguntas Frequentes (FAQ) - Suporte Operacional"):
-        st.markdown("""
-        **1. O que é o Portal Lox?** Sistema de gestão logística da Varthoz Express.
-        **2. O preço flutua?** Não. O Lox opera com **Tarifa Dinâmica Zero**.
-        **3. Qual a antecedência?** Mínimo de **1 Turno (4 horas)**.
-        **4. Como recebo a Nota Fiscal?** Após o agendamento, o Recibo Oficial é gerado automaticamente em tela para o seu financeiro.
-        """)
 
     st.markdown("---")
     if st.button("Encerrar Sessão"):
