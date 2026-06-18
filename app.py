@@ -9,7 +9,7 @@ import pandas as pd
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.13 - Chromium Render Engine (Gov.br Bypass)
+# Versão: 5.14 - Clean Output & Print Header Bypass
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -147,6 +147,7 @@ def gerar_recibo_texto(dados, espera_total, enderecos=None):
     else:
         linha_espera = "Espera Técnica   : 0 minutos"
 
+    # Aviso inútil de assinatura removido da formatação bruta
     recibo = f"""=====================================================================
 RECIBO DE PRESTAÇÃO DE SERVIÇOS E REEMBOLSO DE DESPESAS
 =====================================================================
@@ -180,23 +181,25 @@ CPF: [REDACTED-PIX-CPF]
 ---------------------------------------------------------------------
 FRANCESCO DE ANDRADE APRATTO
 Gestão Logística & Projetos
-(Aplicar Assinatura Digital Gov.br neste espaço)
 ====================================================================="""
     return recibo
 
 def gerar_html_dinamico(texto_recibo):
-    """Encapsula o texto puro em HTML com gatilho JavaScript de impressão automática"""
+    """
+    CSS @page { margin: 0; } desativa os cabeçalhos/rodapés automáticos do navegador.
+    body { padding: 15mm; } recompõe a margem interna do PDF para não colar o texto na borda.
+    """
     html_content = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Recibo Corporativo - Varthoz</title>
+    <title>Recibo B2B Varthoz</title>
     <style>
         body {{ font-family: 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.3; color: #000; background: #fff; padding: 20px; }}
-        pre {{ white-space: pre-wrap; word-wrap: break-word; font-family: inherit; border: none; overflow: hidden; }}
+        pre {{ white-space: pre-wrap; word-wrap: break-word; font-family: inherit; border: none; overflow: hidden; margin: 0; }}
         @media print {{
-            @page {{ margin: 15mm; size: A4 portrait; }}
-            body {{ padding: 0; }}
+            @page {{ margin: 0; size: A4 portrait; }}
+            body {{ padding: 20mm; }} 
         }}
     </style>
 </head>
@@ -317,7 +320,6 @@ def tela_principal():
                             st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
                             texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, enderecos_pesquisa)
                             
-                            # Botão para o arquivo HTML dinâmico
                             html_bytes = gerar_html_dinamico(texto_recibo)
                             st.download_button(
                                 label="📄 Gerar Recibo B2B (Auto-PDF)",
@@ -370,7 +372,6 @@ def tela_principal():
                     st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                     texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra)
                     
-                    # Botão para o arquivo HTML dinâmico
                     html_bytes_fixo = gerar_html_dinamico(texto_recibo_fixo)
                     st.download_button(
                         label="📄 Gerar Recibo B2B (Auto-PDF)",
