@@ -7,7 +7,7 @@ import urllib.parse
 import gspread
 import pandas as pd
 
-# Tentativa de importação do motor de PDF (Defensiva)
+# Tentativa de importação do motor moderno de PDF
 try:
     from fpdf import FPDF
     HAS_FPDF = True
@@ -16,7 +16,7 @@ except ImportError:
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.9 - Exportação Nativa PDF (Gov.br Ready)
+# Versão: 5.10 - Exportação Nativa PDF (Motor FPDF2 / Gov.br Compliant)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -192,34 +192,28 @@ Gestão Logística & Projetos
     return recibo
 
 def gerar_pdf_bytes(texto_recibo):
-    """Lê a String estruturada e desenha o arquivo PDF físico"""
+    """Lê a String estruturada e desenha o arquivo PDF (Motor Gov.br Compliant FPDF2)"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_margins(15, 15, 15)
     
-    # Tratamento de acentos para o motor do PDF
-    texto_latin = texto_recibo.encode('latin-1', 'replace').decode('latin-1')
-    
-    for linha in texto_latin.split('\n'):
+    # Com fpdf2, o suporte a UTF-8 é nativo. Usamos Helvetica (Core Font) para não dar bug no Gov.br
+    for linha in texto_recibo.split('\n'):
         if "RECIBO DE PRESTAÇÃO DE SERVIÇOS" in linha:
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 6, linha, ln=True, align='C')
+            pdf.set_font("Helvetica", 'B', 12)
+            pdf.cell(0, 6, linha, ln=1, align='C')
         elif "VALOR TOTAL" in linha or "TOMADOR DO SERVIÇO" in linha or "DADOS PARA PAGAMENTO" in linha or "FRANCESCO DE" in linha:
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(0, 6, linha, ln=True)
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(0, 6, linha, ln=1)
         elif "===" in linha or "---" in linha:
             pdf.set_font("Courier", '', 10)
-            pdf.cell(0, 4, linha, ln=True, align='C')
+            pdf.cell(0, 4, linha, ln=1, align='C')
         else:
-            pdf.set_font("Arial", '', 10)
+            pdf.set_font("Helvetica", '', 10)
             pdf.multi_cell(0, 5, linha)
             
-    try:
-        # FPDF Versão 1.x
-        return pdf.output(dest='S').encode('latin-1')
-    except Exception:
-        # FPDF Versão 2.x
-        return bytes(pdf.output())
+    # Retorna o PDF construído de forma limpa como bytes
+    return bytes(pdf.output())
 
 def tela_login():
     st.title("🔒 Lox")
@@ -341,7 +335,7 @@ def tela_principal():
                                     use_container_width=True
                                 )
                             else:
-                                st.error("⚠️ Biblioteca 'fpdf' não instalada. Execute 'pip install fpdf' para ativar os downloads.")
+                                st.error("⚠️ Biblioteca 'fpdf2' não instalada. Execute 'pip install fpdf2' para ativar os downloads.")
                             
                             st.markdown("### Pré-visualização do Recibo")
                             st.code(texto_recibo, language="markdown")
@@ -396,7 +390,7 @@ def tela_principal():
                             use_container_width=True
                         )
                     else:
-                        st.error("⚠️ Biblioteca 'fpdf' não instalada. Execute 'pip install fpdf' para ativar os downloads.")
+                        st.error("⚠️ Biblioteca 'fpdf2' não instalada. Execute 'pip install fpdf2' para ativar os downloads.")
                     
                     st.markdown("### Pré-visualização do Recibo")
                     st.code(texto_recibo_fixo, language="markdown")
