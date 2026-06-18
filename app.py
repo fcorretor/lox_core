@@ -7,7 +7,6 @@ import urllib.parse
 import gspread
 import pandas as pd
 
-# Tentativa de importação do motor moderno de PDF
 try:
     from fpdf import FPDF
     HAS_FPDF = True
@@ -16,7 +15,7 @@ except ImportError:
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.10 - Exportação Nativa PDF (Motor FPDF2 / Gov.br Compliant)
+# Versão: 5.11 - Motor FPDF2 Rígido (Anti-Bug de Margem)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -192,27 +191,27 @@ Gestão Logística & Projetos
     return recibo
 
 def gerar_pdf_bytes(texto_recibo):
-    """Lê a String estruturada e desenha o arquivo PDF (Motor Gov.br Compliant FPDF2)"""
+    """Motor de PDF Compilado em Linhas Estritas para evitar crash de margem no fpdf2"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_margins(15, 15, 15)
     
-    # Com fpdf2, o suporte a UTF-8 é nativo. Usamos Helvetica (Core Font) para não dar bug no Gov.br
+    # Injeção Estrita: O Gov.br precisa de Helvetica e nós vamos imprimir linha a linha sem word-wrap
     for linha in texto_recibo.split('\n'):
         if "RECIBO DE PRESTAÇÃO DE SERVIÇOS" in linha:
             pdf.set_font("Helvetica", 'B', 12)
-            pdf.cell(0, 6, linha, ln=1, align='C')
+            pdf.cell(0, 6, txt=linha, ln=True, align='C')
         elif "VALOR TOTAL" in linha or "TOMADOR DO SERVIÇO" in linha or "DADOS PARA PAGAMENTO" in linha or "FRANCESCO DE" in linha:
             pdf.set_font("Helvetica", 'B', 10)
-            pdf.cell(0, 6, linha, ln=1)
+            pdf.cell(0, 6, txt=linha, ln=True)
         elif "===" in linha or "---" in linha:
             pdf.set_font("Courier", '', 10)
-            pdf.cell(0, 4, linha, ln=1, align='C')
+            pdf.cell(0, 4, txt=linha, ln=True, align='C')
         else:
             pdf.set_font("Helvetica", '', 10)
-            pdf.multi_cell(0, 5, linha)
+            # A substituição do multi_cell() problemático pela impressão explícita de cell() em nova linha
+            pdf.cell(0, 5, txt=linha, ln=True)
             
-    # Retorna o PDF construído de forma limpa como bytes
     return bytes(pdf.output())
 
 def tela_login():
@@ -335,7 +334,7 @@ def tela_principal():
                                     use_container_width=True
                                 )
                             else:
-                                st.error("⚠️ Biblioteca 'fpdf2' não instalada. Execute 'pip install fpdf2' para ativar os downloads.")
+                                st.error("⚠️ Biblioteca 'fpdf2' não instalada no Requirements.")
                             
                             st.markdown("### Pré-visualização do Recibo")
                             st.code(texto_recibo, language="markdown")
@@ -390,7 +389,7 @@ def tela_principal():
                             use_container_width=True
                         )
                     else:
-                        st.error("⚠️ Biblioteca 'fpdf2' não instalada. Execute 'pip install fpdf2' para ativar os downloads.")
+                        st.error("⚠️ Biblioteca 'fpdf2' não instalada no Requirements.")
                     
                     st.markdown("### Pré-visualização do Recibo")
                     st.code(texto_recibo_fixo, language="markdown")
@@ -445,9 +444,6 @@ def tela_principal():
         st.session_state["autenticado"] = False
         st.rerun()
 
-# ==========================================
-# MÁQUINA DE ESTADO DO SISTEMA
-# ==========================================
 if "autenticado" not in st.session_state: 
     st.session_state["autenticado"] = False
 
