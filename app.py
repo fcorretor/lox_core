@@ -6,19 +6,10 @@ from datetime import datetime
 import urllib.parse
 import gspread
 import pandas as pd
-import io
-
-# Importação do Motor Industrial de PDF (ReportLab)
-try:
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import A4
-    HAS_PDF_ENGINE = True
-except ImportError:
-    HAS_PDF_ENGINE = False
 
 # ==========================================
 # LOX - MOTOR DE LOGÍSTICA EXECUTIVA B2B
-# Versão: 5.12 - Motor ReportLab (Gov.br 100% Compliant)
+# Versão: 5.13 - Chromium Render Engine (Gov.br Bypass)
 # ==========================================
 
 st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layout="centered")
@@ -193,40 +184,29 @@ Gestão Logística & Projetos
 ====================================================================="""
     return recibo
 
-def gerar_pdf_bytes(texto_recibo):
-    """Gera um PDF robusto usando ReportLab, compatível com os validadores do Gov.br"""
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
-    largura, altura = A4
-    
-    y = altura - 50 # Posição inicial no topo da página
-    margem_esquerda = 50
-
-    for linha in texto_recibo.split('\n'):
-        if "RECIBO DE PRESTAÇÃO DE SERVIÇOS" in linha:
-            p.setFont("Helvetica-Bold", 11)
-            p.drawCentredString(largura / 2.0, y, linha)
-        elif "VALOR TOTAL" in linha or "TOMADOR DO SERVIÇO" in linha or "DADOS PARA PAGAMENTO" in linha or "FRANCESCO DE" in linha:
-            p.setFont("Helvetica-Bold", 10)
-            p.drawString(margem_esquerda, y, linha)
-        elif "===" in linha or "---" in linha:
-            p.setFont("Courier", 10)
-            p.drawCentredString(largura / 2.0, y, linha)
-        else:
-            p.setFont("Helvetica", 10)
-            p.drawString(margem_esquerda, y, linha)
-        
-        y -= 15 # Move a caneta para baixo a cada linha
-        
-        if y < 40: # Quebra de página por segurança
-            p.showPage()
-            p.setFont("Helvetica", 10)
-            y = altura - 50
-
-    p.save()
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    return pdf_bytes
+def gerar_html_dinamico(texto_recibo):
+    """Encapsula o texto puro em HTML com gatilho JavaScript de impressão automática"""
+    html_content = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Recibo Corporativo - Varthoz</title>
+    <style>
+        body {{ font-family: 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.3; color: #000; background: #fff; padding: 20px; }}
+        pre {{ white-space: pre-wrap; word-wrap: break-word; font-family: inherit; border: none; overflow: hidden; }}
+        @media print {{
+            @page {{ margin: 15mm; size: A4 portrait; }}
+            body {{ padding: 0; }}
+        }}
+    </style>
+</head>
+<body onload="setTimeout(function(){{ window.print(); }}, 500);">
+<pre>
+{texto_recibo}
+</pre>
+</body>
+</html>"""
+    return html_content.encode('utf-8')
 
 def tela_login():
     st.title("🔒 Lox")
@@ -337,18 +317,16 @@ def tela_principal():
                             st.success(f"## VALOR FINAL ESTIMADO: R$ {resultado['total']:.2f}")
                             texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, enderecos_pesquisa)
                             
-                            if HAS_PDF_ENGINE:
-                                pdf_bytes = gerar_pdf_bytes(texto_recibo)
-                                st.download_button(
-                                    label="📄 Baixar Recibo em PDF",
-                                    data=pdf_bytes,
-                                    file_name=f"Francesco_NF_RPSRD{dados_corrida['ID']}.pdf",
-                                    mime="application/pdf",
-                                    type="primary",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.error("⚠️ Biblioteca 'reportlab' não instalada no Requirements.")
+                            # Botão para o arquivo HTML dinâmico
+                            html_bytes = gerar_html_dinamico(texto_recibo)
+                            st.download_button(
+                                label="📄 Gerar Recibo B2B (Auto-PDF)",
+                                data=html_bytes,
+                                file_name=f"Francesco_NF_RPSRD{dados_corrida['ID']}.html",
+                                mime="text/html",
+                                type="primary",
+                                use_container_width=True
+                            )
                             
                             st.markdown("### Pré-visualização do Recibo")
                             st.code(texto_recibo, language="markdown")
@@ -392,18 +370,16 @@ def tela_principal():
                     st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                     texto_recibo_fixo = gerar_recibo_texto(dados_fixa, espera_extra)
                     
-                    if HAS_PDF_ENGINE:
-                        pdf_bytes_fixo = gerar_pdf_bytes(texto_recibo_fixo)
-                        st.download_button(
-                            label="📄 Baixar Recibo em PDF",
-                            data=pdf_bytes_fixo,
-                            file_name=f"Francesco_NF_RPSRD{dados_fixa['ID']}.pdf",
-                            mime="application/pdf",
-                            type="primary",
-                            use_container_width=True
-                        )
-                    else:
-                        st.error("⚠️ Biblioteca 'reportlab' não instalada no Requirements.")
+                    # Botão para o arquivo HTML dinâmico
+                    html_bytes_fixo = gerar_html_dinamico(texto_recibo_fixo)
+                    st.download_button(
+                        label="📄 Gerar Recibo B2B (Auto-PDF)",
+                        data=html_bytes_fixo,
+                        file_name=f"Francesco_NF_RPSRD{dados_fixa['ID']}.html",
+                        mime="text/html",
+                        type="primary",
+                        use_container_width=True
+                    )
                     
                     st.markdown("### Pré-visualização do Recibo")
                     st.code(texto_recibo_fixo, language="markdown")
