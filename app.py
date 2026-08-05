@@ -208,7 +208,7 @@ Gestão Logística & Projetos
 
 
 def compilar_pdf_traslado(texto_recibo):
-    """Renderiza a string formatada em um PDF monoespaçado. Blindagem anti-crash FPDF2."""
+    """Renderiza a string em PDF monoespaçado. Gravação em disco para conformidade ITI (Gov.br)."""
     try:
         pdf = FPDF()
         pdf.add_page()
@@ -219,7 +219,16 @@ def compilar_pdf_traslado(texto_recibo):
         for linha in texto_recibo.split('\n'):
             pdf.cell(0, 5, sanitizar_texto_fpdf(linha), ln=True)
             
-        return bytes(pdf.output())
+        # Gravação física obriga o OS a fechar os headers do PDF exigidos pelo Gov.br
+        fd, path = tempfile.mkstemp(suffix=".pdf")
+        os.close(fd)
+        pdf.output(path)
+        
+        # Extrai os bytes puros e validados do arquivo consolidado
+        with open(path, "rb") as f:
+            pdf_bytes = f.read()
+            
+        return pdf_bytes
     except Exception as e:
         st.error(f"Falha crítica na matriz de renderização FPDF: {e}")
         return None
@@ -352,8 +361,7 @@ def modulo_passageiros():
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                 
                 # --- ÚNICO MOTOR DE PDF PERMITIDO (ARQUITETURA MODULAR) ---
-                with st.spinner("Compilando binário corporativo..."):
-                    # Puxa o texto completo com formatação de auditoria (fonte monoespaçada Courier)
+                with st.spinner("Compilando binário corporativo com compliance Gov.br..."):
                     texto_completo = gerar_recibo_texto(dados_fixa, espera_extra)
                     pdf_bytes = compilar_pdf_traslado(texto_completo)
                 
@@ -364,42 +372,6 @@ def modulo_passageiros():
                         file_name=f"Recibo_Sulmed_Traslado_{dados_fixa['ID']}.pdf",
                         mime="application/pdf"
                     )
-            
-            # --- MOTOR FPDF RENDERIZADO DIRETAMENTE NA TELA ---
-            try:
-                with st.spinner("Compilando binário do documento..."):
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", "B", 16)
-                    
-                    pdf.cell(0, 10, sanitizar_texto_fpdf("Recibo de Traslado - Sulmed / SylvaCore"), ln=True, align='C')
-                    pdf.ln(10)
-                    
-                    pdf.set_font("Arial", "", 12)
-                    
-                    # Injeção das tuas variáveis nativas declaradas no st.columns lá no topo
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Passageiro/Médico(a): {passageiro}"), ln=True)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Data do Traslado: {data_corrida.strftime('%d/%m/%Y')} | Horário: {hora_db_str}"), ln=True)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Rota Executada: {rota_fixa}"), ln=True)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Centro de Custo: {centro_custo}"), ln=True)
-                    
-                    pdf.ln(5)
-                    pdf.set_font("Arial", "B", 12)
-                    pdf.cell(0, 10, sanitizar_texto_fpdf(f"Valor Total Orçado: R$ {valor_final:.2f}"), ln=True)
-                    
-                    # LINHA BLINDADA: O cast direto para bytes() elimina o overhead de encodificação
-                    pdf_bytes = bytes(pdf.output())
-                    
-                    # O botão de download renderiza o PDF em tempo real, sem sumir
-                    st.download_button(
-                        label="⬇️ Baixar Documento Fiscal (PDF)",
-                        data=pdf_bytes,
-                        file_name=f"Nota_Sulmed_{passageiro.replace(' ', '_')}.pdf",
-                        mime="application/pdf"
-                    )
-                    
-            except Exception as e:
-                st.error(f"Falha de compilação no motor FPDF: {e}")
 
     with aba_financeiro:
         if st.button("Carregar Matriz"):
