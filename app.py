@@ -317,14 +317,15 @@ def modulo_passageiros():
                     else: st.error(resultado)
                 else: st.warning("Preencha Origem e Destino para cálculo da rota.")
 
-        else:
+else:
             rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem (Triunfo)", "Porto Alegre <-> Distrito Industrial (Alvorada)"])
             espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
 
+            # Cálculo ancorado fora do botão para o FPDF conseguir puxar o número
+            valor_base = 250.00 if "Braskem" in rota_fixa else 125.00
+            valor_final = valor_base + (espera_extra * VALOR_MINUTO_ESPERA)
+
             if st.button("Gerar Pedido", type="primary"):
-                valor_base = 250.00 if "Braskem" in rota_fixa else 125.00
-                valor_final = valor_base + (espera_extra * VALOR_MINUTO_ESPERA)
-                
                 dados_fixa = {
                     "ID": datetime.now().strftime("%Y%m%d%H%M%S"),
                     "Data_Agendamento": datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -335,8 +336,8 @@ def modulo_passageiros():
                 }
                 salvar_no_banco(dados_fixa)
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
-                # Botão de Emissão Isolado no Módulo Traslado
-        if st.button("📄 Emitir Nota / Recibo PDF", type="primary"):
+            
+            # --- MOTOR FPDF RENDERIZADO DIRETAMENTE NA TELA ---
             try:
                 with st.spinner("Compilando binário do documento..."):
                     pdf = FPDF()
@@ -348,13 +349,11 @@ def modulo_passageiros():
                     
                     pdf.set_font("Arial", "", 12)
                     
-                    # INJEÇÃO CORRIGIDA: Substitua 'variavel_real_do_passageiro' pelo nome que está no teu st.text_input
-                    texto_passageiro = sanitizar_texto_fpdf(f"Passageiro/Médico(a): {variavel_real_do_passageiro}")
-                    pdf.cell(0, 8, texto_passageiro, ln=True)
-                    
-                    # Repita o mesmo mapeamento estrito para data_traslado, horario_ida, etc.
-                    texto_data = sanitizar_texto_fpdf(f"Data do Traslado: {variavel_real_data} | Horário: {variavel_real_horario}")
-                    pdf.cell(0, 8, texto_data, ln=True)
+                    # Injeção das tuas variáveis nativas declaradas no st.columns lá no topo
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Passageiro/Médico(a): {passageiro}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Data do Traslado: {data_corrida.strftime('%d/%m/%Y')} | Horário: {hora_db_str}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Rota Executada: {rota_fixa}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Centro de Custo: {centro_custo}"), ln=True)
                     
                     pdf.ln(5)
                     pdf.set_font("Arial", "B", 12)
@@ -362,10 +361,11 @@ def modulo_passageiros():
                     
                     pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
                     
+                    # O botão de download renderiza o PDF em tempo real, sem sumir
                     st.download_button(
                         label="⬇️ Baixar Documento Fiscal (PDF)",
                         data=pdf_bytes,
-                        file_name="Nota_Sulmed.pdf",
+                        file_name=f"Nota_Sulmed_{passageiro.replace(' ', '_')}.pdf",
                         mime="application/pdf"
                     )
                     
