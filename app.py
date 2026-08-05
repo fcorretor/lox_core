@@ -335,6 +335,43 @@ def modulo_passageiros():
                 }
                 salvar_no_banco(dados_fixa)
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
+                # Botão de Emissão Isolado no Módulo Traslado
+        if st.button("📄 Emitir Nota / Recibo PDF", type="primary"):
+            try:
+                with st.spinner("Compilando binário do documento..."):
+                    pdf = FPDF()
+                    pdf.add_page()
+                    # Certifique-se de que a fonte suporta os caracteres ou use a tua função sanitizar_texto_fpdf
+                    pdf.set_font("Arial", "B", 16)
+                    
+                    # Cabeçalho
+                    pdf.cell(0, 10, sanitizar_texto_fpdf("Recibo de Traslado - Sulmed / SylvaCore"), ln=True, align='C')
+                    pdf.ln(10)
+                    
+                    # Corpo de Dados
+                    pdf.set_font("Arial", "", 12)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Passageiro/Médico(a): {nome_passageiro}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Data do Traslado: {data_traslado} | Horário: {horario_ida}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Rota Executada: {rota_selecionada}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Centro de Custo: {centro_custo}"), ln=True)
+                    pdf.ln(5)
+                    
+                    # Faturamento
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 10, sanitizar_texto_fpdf(f"Valor Total Orçado: R$ {valor_final:.2f}"), ln=True)
+                    
+                    # Output do Buffer (Geração em Memória para o Streamlit)
+                    pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+                    
+                    st.download_button(
+                        label="⬇️ Baixar Documento Fiscal (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"Nota_Sulmed_{nome_passageiro}.pdf",
+                        mime="application/pdf"
+                    )
+                    
+            except Exception as e:
+                st.error(f"Falha de compilação no motor FPDF: {e}")
 
     with aba_financeiro:
         if st.button("Carregar Matriz"):
