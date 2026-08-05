@@ -208,23 +208,24 @@ Gestão Logística & Projetos
 
 
 def compilar_pdf_traslado(texto_recibo):
-    """Renderiza a string em PDF monoespaçado. Gravação em disco para conformidade ITI (Gov.br)."""
+    """Renderiza o recibo em PDF com margens estritas e fonte otimizada para conformidade ITI (Gov.br)."""
     try:
-        pdf = FPDF()
+        # Inicializa o PDF com formato A4 estrito
+        pdf = FPDF(orientation='P', unit='mm', format='A4')
+        pdf.set_auto_page_break(auto=True, margin=10)
         pdf.add_page()
-        # A fonte Courier garante o alinhamento de tabela por ser monoespaçada
-        pdf.set_font("Courier", "", 10) 
         
-        # Injeção linha a linha preservando quebras naturais do texto cru
+        # Tipografia Courier 9 e line-height 4.5 garantem encaixe perfeito no A4 sem corromper o stream
+        pdf.set_font("Courier", "", 9) 
+        
         for linha in texto_recibo.split('\n'):
-            pdf.cell(0, 5, sanitizar_texto_fpdf(linha), ln=True)
+            pdf.cell(0, 4.5, sanitizar_texto_fpdf(linha), ln=True)
             
-        # Gravação física obriga o OS a fechar os headers do PDF exigidos pelo Gov.br
+        # Gravação física para consolidação dos metadados exigidos pelo Gov.br
         fd, path = tempfile.mkstemp(suffix=".pdf")
         os.close(fd)
         pdf.output(path)
         
-        # Extrai os bytes puros e validados do arquivo consolidado
         with open(path, "rb") as f:
             pdf_bytes = f.read()
             
