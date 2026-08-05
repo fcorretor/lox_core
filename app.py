@@ -361,7 +361,7 @@ def modulo_passageiros():
                     st.download_button(
                         label="⬇️ Baixar Documento Fiscal (PDF)",
                         data=pdf_bytes,
-                        file_name=f"Nota_Sulmed_{dados_fixa['ID']}.pdf",
+                        file_name=f"Recibo_Sulmed_Traslado_{dados_fixa['ID']}.pdf",
                         mime="application/pdf"
                     )
             
@@ -481,7 +481,7 @@ def modulo_entregas():
                     st.download_button(
                         label="⬇️ Baixar PDF Assinável (Gov.br)",
                         data=pdf_bytes,
-                        file_name=f"{id_os}.pdf",
+                        file_name=f"Recibo_Sulmed_Logistica_{id_os}.pdf",
                         mime="application/pdf",
                         type="primary"
                     )
