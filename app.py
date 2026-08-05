@@ -351,8 +351,9 @@ def modulo_passageiros():
                 salvar_no_banco(dados_fixa)
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                 
-                # Chamada modular de alta performance (sem poluição sintática)
+                # --- ÚNICO MOTOR DE PDF PERMITIDO (ARQUITETURA MODULAR) ---
                 with st.spinner("Compilando binário corporativo..."):
+                    # Puxa o texto completo com formatação de auditoria (fonte monoespaçada Courier)
                     texto_completo = gerar_recibo_texto(dados_fixa, espera_extra)
                     pdf_bytes = compilar_pdf_traslado(texto_completo)
                 
