@@ -39,7 +39,6 @@ CENTROS_DE_CUSTO = [
     "Outros"
 ]
 
-# ANA: Sanitizador de strings para evitar quebra de encoding no FPDF
 def sanitizar_texto_fpdf(texto):
     if not texto:
         return ""
