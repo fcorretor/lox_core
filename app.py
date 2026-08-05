@@ -359,7 +359,8 @@ def modulo_passageiros():
                     pdf.set_font("Arial", "B", 12)
                     pdf.cell(0, 10, sanitizar_texto_fpdf(f"Valor Total Orçado: R$ {valor_final:.2f}"), ln=True)
                     
-                    pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+                    # LINHA BLINDADA: O cast direto para bytes() elimina o overhead de encodificação
+                    pdf_bytes = bytes(pdf.output())
                     
                     # O botão de download renderiza o PDF em tempo real, sem sumir
                     st.download_button(
