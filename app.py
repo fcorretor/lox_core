@@ -341,32 +341,31 @@ def modulo_passageiros():
                 with st.spinner("Compilando binário do documento..."):
                     pdf = FPDF()
                     pdf.add_page()
-                    # Certifique-se de que a fonte suporta os caracteres ou use a tua função sanitizar_texto_fpdf
                     pdf.set_font("Arial", "B", 16)
                     
-                    # Cabeçalho
                     pdf.cell(0, 10, sanitizar_texto_fpdf("Recibo de Traslado - Sulmed / SylvaCore"), ln=True, align='C')
                     pdf.ln(10)
                     
-                    # Corpo de Dados
                     pdf.set_font("Arial", "", 12)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Passageiro/Médico(a): {nome_passageiro}"), ln=True)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Data do Traslado: {data_traslado} | Horário: {horario_ida}"), ln=True)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Rota Executada: {rota_selecionada}"), ln=True)
-                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Centro de Custo: {centro_custo}"), ln=True)
-                    pdf.ln(5)
                     
-                    # Faturamento
+                    # INJEÇÃO CORRIGIDA: Substitua 'variavel_real_do_passageiro' pelo nome que está no teu st.text_input
+                    texto_passageiro = sanitizar_texto_fpdf(f"Passageiro/Médico(a): {variavel_real_do_passageiro}")
+                    pdf.cell(0, 8, texto_passageiro, ln=True)
+                    
+                    # Repita o mesmo mapeamento estrito para data_traslado, horario_ida, etc.
+                    texto_data = sanitizar_texto_fpdf(f"Data do Traslado: {variavel_real_data} | Horário: {variavel_real_horario}")
+                    pdf.cell(0, 8, texto_data, ln=True)
+                    
+                    pdf.ln(5)
                     pdf.set_font("Arial", "B", 12)
                     pdf.cell(0, 10, sanitizar_texto_fpdf(f"Valor Total Orçado: R$ {valor_final:.2f}"), ln=True)
                     
-                    # Output do Buffer (Geração em Memória para o Streamlit)
                     pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
                     
                     st.download_button(
                         label="⬇️ Baixar Documento Fiscal (PDF)",
                         data=pdf_bytes,
-                        file_name=f"Nota_Sulmed_{nome_passageiro}.pdf",
+                        file_name="Nota_Sulmed.pdf",
                         mime="application/pdf"
                     )
                     
