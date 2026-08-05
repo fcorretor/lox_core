@@ -332,7 +332,7 @@ def modulo_passageiros():
                     else: st.error(resultado)
                 else: st.warning("Preencha Origem e Destino para cálculo da rota.")
 
-        else:
+       else:
             rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem (Triunfo)", "Porto Alegre <-> Distrito Industrial (Alvorada)"])
             espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
 
@@ -351,8 +351,9 @@ def modulo_passageiros():
                 salvar_no_banco(dados_fixa)
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                 
-                # Chamada modular de alta performance (sem poluição sintática)
+                # --- ÚNICO MOTOR DE PDF PERMITIDO (ARQUITETURA MODULAR) ---
                 with st.spinner("Compilando binário corporativo..."):
+                    # Puxa o texto completo com formatação de auditoria (fonte monoespaçada Courier)
                     texto_completo = gerar_recibo_texto(dados_fixa, espera_extra)
                     pdf_bytes = compilar_pdf_traslado(texto_completo)
                 
