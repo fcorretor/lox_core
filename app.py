@@ -208,24 +208,34 @@ Gestão Logística & Projetos
 
 
 def compilar_pdf_traslado(texto_recibo):
-    """Renderiza o recibo em PDF com margens estritas e fonte otimizada para conformidade ITI (Gov.br)."""
+    """Renderiza o recibo com matriz de cor e margens explícitas para o canvas do Gov.br."""
     try:
-        # Inicializa o PDF com formato A4 estrito
+        # Inicialização estrita da geometria A4
         pdf = FPDF(orientation='P', unit='mm', format='A4')
-        pdf.set_auto_page_break(auto=True, margin=10)
+        
+        # 1. Definição explícita de margens físicas (15mm de respiro em todos os eixos)
+        pdf.set_margins(15, 15, 15)
+        pdf.set_auto_page_break(auto=True, margin=15)
+        
         pdf.add_page()
         
-        # Tipografia Courier 9 e line-height 4.5 garantem encaixe perfeito no A4 sem corromper o stream
-        pdf.set_font("Courier", "", 9) 
+        # 2. Declaração explícita do espectro de cor (Preto RGB absoluto)
+        # Fundamental para o visualizador web do ITI renderizar os pixels na tela
+        pdf.set_text_color(0, 0, 0)
         
+        # 3. Tipografia monoespaçada e tamanho padronizado para leitura confortável
+        pdf.set_font("Courier", "", 10) 
+        
+        # Injeção e quebra de linha determinística
         for linha in texto_recibo.split('\n'):
-            pdf.cell(0, 4.5, sanitizar_texto_fpdf(linha), ln=True)
+            pdf.cell(0, 5, sanitizar_texto_fpdf(linha), ln=True)
             
-        # Gravação física para consolidação dos metadados exigidos pelo Gov.br
+        # Gravação física em disco para estruturação dos cabeçalhos EOF (Anti-Crash Gov.br)
         fd, path = tempfile.mkstemp(suffix=".pdf")
         os.close(fd)
         pdf.output(path)
         
+        # Extração binária limpa
         with open(path, "rb") as f:
             pdf_bytes = f.read()
             
