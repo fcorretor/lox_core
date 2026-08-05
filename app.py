@@ -130,6 +130,7 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
         return f"Falha no ecossistema de roteamento: {e}"
 
 def gerar_recibo_texto(dados, espera_total, enderecos=None):
+    """Gera o corpo do texto com layout estrito de auditoria fiscal e dados de pagamento."""
     data_emissao = datetime.now().strftime("%d/%m/%Y")
     
     if dados['Destino'] == "Rota Fixa Homologada":
@@ -137,7 +138,7 @@ def gerar_recibo_texto(dados, espera_total, enderecos=None):
             h_ida = dados['Hora_Embarque'].split("(Ida)")[0].strip()
             h_volta = dados['Hora_Embarque'].split("|")[1].replace("(Volta)", "").strip()
             destino_clean = "Triunfo (Braskem)" if "Braskem" in dados['Origem'] else "Alvorada (Distrito Industrial)"
-            detalhe_rota = f"IDA (Saída {h_ida}): Porto Alegre -> {destino_clean}\nVOLTA (Saída {h_volta}): {destino_clean} -> Porto Alegre\nRef. Rota: {dados['Origem']}"
+            detalhe_rota = f"IDA (Saída {h_ida}): Porto Alegre -> {destino_clean}\nVOLTA (Saída {h_volta}): {destino_clean} -> Porto Alegre\nRef. Rota: {dados['Origem']} (Ida e Volta)"
         else:
             detalhe_rota = f"Rota Homologada   : {dados['Origem']}"
             
@@ -178,10 +179,12 @@ Data de Emissão : {data_emissao}
 
 TOMADOR DO SERVIÇO:
 Razão Social: SULMED ASSISTÊNCIA MÉDICA LTDA.
+CNPJ: 90.747.908/0001-56
 Solicitante: {dados['Solicitante']} (Centro de Custo: {dados['Centro_Custo']})
 ---------------------------------------------------------------------
 DESCRIÇÃO DETALHADA DOS SERVIÇOS:
-Serviços de logística e transporte executivo de pessoal.
+Serviços de logística e transporte executivo de pessoal, realizados em
+veículo particular, conforme detalhamento abaixo:
 Data do Traslado: {dados['Data_Traslado']} às {dados['Hora_Embarque']}
 Passageiro(s)   : {dados['Passageiro']}
 {detalhe_rota}
@@ -189,25 +192,37 @@ Passageiro(s)   : {dados['Passageiro']}
 ---------------------------------------------------------------------
 VALOR TOTAL PELOS SERVIÇOS PRESTADOS: R$ {dados['Valor_Total']:.2f}
 ---------------------------------------------------------------------
+Declaro que a quitação se dará mediante o crédito em conta.
+
+DADOS PARA PAGAMENTO:
+Chave PIX: [REDACTED-PIX-CPF]
+Instituição de Pagamento
+Banco: 0260 Nu Pagamentos S.A.
+Favorecido: Francesco de Andrade Apratto
+CPF: [REDACTED-PIX-CPF]
+=====================================================================
 FRANCESCO DE ANDRADE APRATTO
-====================================================================="""
+Gestão Logística & Projetos
+"""
     return recibo
 
-def gerar_html_dinamico(texto_recibo):
-    html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body {{ font-family: monospace; font-size: 14px; padding: 20px; }}
-        pre {{ white-space: pre-wrap; }}
-    </style>
-</head>
-<body onload="setTimeout(function(){{ window.print(); }}, 500);">
-<pre>{texto_recibo}</pre>
-</body>
-</html>"""
-    return html_content.encode('utf-8')
+
+def compilar_pdf_traslado(texto_recibo):
+    """Renderiza a string formatada em um PDF monoespaçado. Blindagem anti-crash FPDF2."""
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        # A fonte Courier garante o alinhamento de tabela por ser monoespaçada
+        pdf.set_font("Courier", "", 10) 
+        
+        # Injeção linha a linha preservando quebras naturais do texto cru
+        for linha in texto_recibo.split('\n'):
+            pdf.cell(0, 5, sanitizar_texto_fpdf(linha), ln=True)
+            
+        return bytes(pdf.output())
+    except Exception as e:
+        st.error(f"Falha crítica na matriz de renderização FPDF: {e}")
+        return None
 
 def tela_login():
     st.title("🔒 Lox | Login Corporativo")
@@ -321,7 +336,6 @@ def modulo_passageiros():
             rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem (Triunfo)", "Porto Alegre <-> Distrito Industrial (Alvorada)"])
             espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
 
-            # Cálculo ancorado fora do botão para o FPDF conseguir puxar o número
             valor_base = 250.00 if "Braskem" in rota_fixa else 125.00
             valor_final = valor_base + (espera_extra * VALOR_MINUTO_ESPERA)
 
@@ -336,6 +350,19 @@ def modulo_passageiros():
                 }
                 salvar_no_banco(dados_fixa)
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
+                
+                # Chamada modular de alta performance (sem poluição sintática)
+                with st.spinner("Compilando binário corporativo..."):
+                    texto_completo = gerar_recibo_texto(dados_fixa, espera_extra)
+                    pdf_bytes = compilar_pdf_traslado(texto_completo)
+                
+                if pdf_bytes:
+                    st.download_button(
+                        label="⬇️ Baixar Documento Fiscal (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"Nota_Sulmed_{dados_fixa['ID']}.pdf",
+                        mime="application/pdf"
+                    )
             
             # --- MOTOR FPDF RENDERIZADO DIRETAMENTE NA TELA ---
             try:
