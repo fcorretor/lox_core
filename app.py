@@ -332,7 +332,7 @@ def modulo_passageiros():
                     else: st.error(resultado)
                 else: st.warning("Preencha Origem e Destino para cálculo da rota.")
 
-    else:
+            else:
             rota_fixa = st.selectbox("Selecione a Rota:", ["Porto Alegre <-> Braskem (Triunfo)", "Porto Alegre <-> Distrito Industrial (Alvorada)"])
             espera_extra = st.number_input("Espera Extra (min)", min_value=0, step=5)
 
