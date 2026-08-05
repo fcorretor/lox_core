@@ -208,40 +208,37 @@ Gestão Logística & Projetos
 
 
 def compilar_pdf_traslado(texto_recibo):
-    """Renderiza o recibo com matriz de cor e margens explícitas para o canvas do Gov.br."""
+    """Renderiza o recibo com vetorização Helvetica/Arial. Blindagem absoluta para PDF.js (Gov.br)."""
     try:
-        # Inicialização estrita da geometria A4
+        # Inicialização com geometria A4 explícita
         pdf = FPDF(orientation='P', unit='mm', format='A4')
-        
-        # 1. Definição explícita de margens físicas (15mm de respiro em todos os eixos)
-        pdf.set_margins(15, 15, 15)
-        pdf.set_auto_page_break(auto=True, margin=15)
-        
+        pdf.set_margins(15.0, 15.0, 15.0)
+        pdf.set_auto_page_break(auto=True, margin=15.0)
         pdf.add_page()
         
-        # 2. Declaração explícita do espectro de cor (Preto RGB absoluto)
-        # Fundamental para o visualizador web do ITI renderizar os pixels na tela
+        # Declaração estrita de matriz de cor (Preto absoluto RGB)
         pdf.set_text_color(0, 0, 0)
         
-        # 3. Tipografia monoespaçada e tamanho padronizado para leitura confortável
-        pdf.set_font("Courier", "", 10) 
+        # Retorno à fonte universal Arial. 
+        # O Gov.br rejeita Courier se não estiver embutida via dicionário TTF.
+        pdf.set_font("Arial", "", 10) 
         
-        # Injeção e quebra de linha determinística
+        # Injeção no buffer do PDF. Altura da linha ajustada para 6 (respiro da Arial)
         for linha in texto_recibo.split('\n'):
-            pdf.cell(0, 5, sanitizar_texto_fpdf(linha), ln=True)
+            pdf.cell(0, 6, sanitizar_texto_fpdf(linha), ln=True)
             
-        # Gravação física em disco para estruturação dos cabeçalhos EOF (Anti-Crash Gov.br)
+        # I/O Físico: forçar gravação em disco para fechar os headers (EOF) do arquivo
         fd, path = tempfile.mkstemp(suffix=".pdf")
         os.close(fd)
         pdf.output(path)
         
-        # Extração binária limpa
+        # Extração binária bruta
         with open(path, "rb") as f:
             pdf_bytes = f.read()
             
         return pdf_bytes
     except Exception as e:
-        st.error(f"Falha crítica na matriz de renderização FPDF: {e}")
+        st.error(f"Falha na compilação estrutural FPDF: {e}")
         return None
 
 def tela_login():
