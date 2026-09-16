@@ -385,7 +385,14 @@ def modulo_passageiros():
                         notificar_operador(f"Novo traslado (Nova Rota): {dados_corrida['Passageiro']} em {dados_corrida['Data_Traslado']} - R$ {dados_corrida['Valor_Total']:.2f}")
                         st.success(f"## VALOR FINAL: R$ {resultado['total']:.2f}")
                         texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, enderecos_pesquisa)
-                        st.download_button(label="📄 Gerar Recibo B2B (Auto-PDF)", data=gerar_html_dinamico(texto_recibo), file_name="recibo.html", mime="text/html")
+                        pdf_bytes_nova_rota = compilar_pdf_traslado(texto_recibo)
+                        if pdf_bytes_nova_rota:
+                            st.download_button(
+                                label="📄 Gerar Recibo B2B (Auto-PDF)",
+                                data=pdf_bytes_nova_rota,
+                                file_name=f"Recibo_Sulmed_Traslado_{dados_corrida['ID']}.pdf",
+                                mime="application/pdf"
+                            )
                     else: st.error(resultado)
                 else: st.warning("Preencha Origem e Destino para cálculo da rota.")
 
