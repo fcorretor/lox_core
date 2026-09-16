@@ -70,6 +70,21 @@ def sanitizar_texto_fpdf(texto):
         texto = texto.replace(orig, sub)
     return texto.encode('latin-1', 'replace').decode('latin-1')
 
+def obter_dados_pagamento():
+    """
+    Lê a chave PIX e o CPF do prestador a partir dos Secrets do Streamlit
+    (painel do Streamlit Cloud, fora do código-fonte/git). Nunca hardcodar
+    esses valores aqui - é exatamente isso que expõe dado sensível num
+    repositório público.
+    """
+    try:
+        pix_key = st.secrets["lox"]["pix_key"]
+        cpf_prestador = st.secrets["lox"]["cpf_prestador"]
+    except Exception:
+        pix_key = "PIX_NAO_CONFIGURADO_NOS_SECRETS"
+        cpf_prestador = "CPF_NAO_CONFIGURADO_NOS_SECRETS"
+    return pix_key, cpf_prestador
+
 def conectar_planilha():
     try:
         if "connections" not in st.secrets or "gsheets" not in st.secrets["connections"]:
@@ -155,6 +170,7 @@ def calcular_rota_automatica(enderecos, total_minutos_espera):
 def gerar_recibo_texto(dados, espera_total, enderecos=None):
     """Gera o corpo do texto com layout estrito de auditoria fiscal e dados de pagamento."""
     data_emissao = datetime.now().strftime("%d/%m/%Y")
+    pix_key, cpf_prestador = obter_dados_pagamento()
     
     if dados['Destino'] == "Rota Fixa Homologada":
         if "(Ida)" in dados['Hora_Embarque']:
@@ -218,11 +234,11 @@ VALOR TOTAL PELOS SERVIÇOS PRESTADOS: R$ {dados['Valor_Total']:.2f}
 Declaro que a quitação se dará mediante o crédito em conta.
 
 DADOS PARA PAGAMENTO:
-Chave PIX: [REDACTED-PIX-CPF]
+Chave PIX: {pix_key}
 Instituição de Pagamento
 Banco: 0260 Nu Pagamentos S.A.
 Favorecido: Francesco de Andrade Apratto
-CPF: [REDACTED-PIX-CPF]
+CPF: {cpf_prestador}
 =====================================================================
 FRANCESCO DE ANDRADE APRATTO
 Gestão Logística & Projetos
@@ -459,6 +475,7 @@ def modulo_passageiros():
 # ==========================================
 def gerar_pdf_entregas(id_os, data_em, cliente, desc, valor_b, valor_a, valor_t):
     try:
+        pix_key, _ = obter_dados_pagamento()
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
@@ -483,7 +500,7 @@ def gerar_pdf_entregas(id_os, data_em, cliente, desc, valor_b, valor_a, valor_t)
         
         pdf.ln(10)
         pdf.set_font("Arial", size=10)
-        pdf.cell(190, 6, txt=sanitizar_texto_fpdf("Quitacao mediante PIX: [REDACTED-PIX-CPF]"), ln=True)
+        pdf.cell(190, 6, txt=sanitizar_texto_fpdf(f"Quitacao mediante PIX: {pix_key}"), ln=True)
         pdf.cell(190, 6, txt=sanitizar_texto_fpdf("Francesco de Andrade Apratto"), ln=True)
         
         fd, path = tempfile.mkstemp(suffix=".pdf")
