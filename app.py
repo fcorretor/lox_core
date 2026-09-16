@@ -519,38 +519,86 @@ def gerar_pdf_entregas(id_os, data_em, cliente, desc, valor_b, valor_a, valor_t)
         return None
 
 def modulo_entregas():
-    st.title("📦 Emissor de Faturamento B2B (Sulmed)")
+    st.title("📦 Cargas / Entregas - Faturamento B2B (Sulmed)")
     st.info("Geração estrita de documentos corporativos em formato PDF padrão auditoria.")
-    
-    with st.form("form_faturamento_b2b"):
-        id_os = st.text_input("ID da Ordem de Serviço", f"OS-{datetime.now().strftime('%Y%m%d')}-SUL")
-        data_emissao = st.date_input("Data de Emissão", date.today())
-        cliente = st.text_input("Tomador do Serviço", "SULMED ASSISTÊNCIA MÉDICA LTDA")
-        descricao = st.text_area("Roteiro e Ocorrências", "Coleta (...) -> Entrega (...) -> Re-entrega (...)")
-        
-        col1, col2 = st.columns(2)
-        with col1: v_base = st.number_input("Valor Base (R$)", min_value=0.0, value=0.0, step=5.0)
-        with col2: v_taxa = st.number_input("Taxas de Anomalia (R$)", min_value=0.0, value=0.0, step=5.0)
-        
-        submit = st.form_submit_button("Gerar PDF de Cobrança")
-        
-        if submit:
-            if v_base <= 0:
-                st.warning("Insira o valor base do serviço para processar o faturamento.")
+
+    id_os = st.text_input("ID da Ordem de Serviço", f"OS-{datetime.now().strftime('%Y%m%d')}-SUL")
+    data_emissao = st.date_input("Data de Emissão", date.today())
+    cliente = st.text_input("Tomador do Serviço", "SULMED ASSISTÊNCIA MÉDICA LTDA")
+    descricao = st.text_area("Escopo do Serviço (o que está sendo transportado)", "Ex: 69 volumes / fraldas")
+
+    st.markdown("---")
+    st.markdown("**Rota da Carga (cálculo automático do SLA Base, mesmo motor do Traslado)**")
+
+    col_rua_o, col_cid_o = st.columns([3, 1])
+    with col_rua_o: rua_coleta = st.text_input("Endereço de Coleta (Rua e Nº)", key="carga_rua_coleta")
+    with col_cid_o: cid_coleta = st.selectbox("Cidade (Coleta)", CIDADES_RMPA, key="carga_cid_coleta")
+
+    qtd_paradas_carga = st.selectbox("Pontos de Entrega Intermediários:", [0, 1, 2, 3], key="carga_qtd_paradas")
+    paradas_carga = []
+    espera_total_carga = 0
+    for i in range(qtd_paradas_carga):
+        col_r, col_c, col_e = st.columns([5, 3, 2])
+        with col_r: p_rua = st.text_input("Rua e Nº", key=f"carga_p_rua_{i}")
+        with col_c: p_cid = st.selectbox("Cidade", CIDADES_RMPA, key=f"carga_p_cid_{i}")
+        with col_e: e_min = st.number_input("Espera (min)", min_value=0, step=5, key=f"carga_e_{i}")
+        if p_rua:
+            paradas_carga.append(f"{p_rua} - {p_cid}")
+            espera_total_carga += e_min
+
+    col_rua_d, col_cid_d = st.columns([3, 1])
+    with col_rua_d: rua_entrega = st.text_input("Endereço de Entrega Final", key="carga_rua_entrega")
+    with col_cid_d: cid_entrega = st.selectbox("Cidade (Entrega)", CIDADES_RMPA, key="carga_cid_entrega")
+
+    if st.button("Calcular Rota e SLA Base", key="carga_calcular"):
+        origem_completa = f"{rua_coleta} - {cid_coleta}" if rua_coleta else ""
+        destino_completo = f"{rua_entrega} - {cid_entrega}" if rua_entrega else ""
+        enderecos_pesquisa = [e for e in ([origem_completa] + paradas_carga + [destino_completo]) if e]
+        if len(enderecos_pesquisa) >= 2 and rua_coleta and rua_entrega:
+            with st.spinner("Calculando rota da carga..."):
+                resultado = calcular_rota_automatica(enderecos_pesquisa, espera_total_carga)
+            if isinstance(resultado, dict):
+                st.session_state["carga_valor_calculado"] = resultado["total"]
+                roteiro_partes = [f"Coleta ({rua_coleta})"] + [f"Entrega ({p})" for p in paradas_carga] + [f"Entrega Final ({rua_entrega})"]
+                st.session_state["carga_roteiro_calculado"] = " -> ".join(roteiro_partes)
+                st.success(f"SLA Base calculado: R$ {resultado['total']:.2f} ({resultado['km']} km)")
             else:
-                v_total = v_base + v_taxa
-                caminho_pdf = gerar_pdf_entregas(id_os, data_emissao.strftime('%d/%m/%Y'), cliente, descricao, v_base, v_taxa, v_total)
-                if caminho_pdf:
-                    with open(caminho_pdf, "rb") as f:
-                        pdf_bytes = f.read()
-                    st.success(f"Faturamento Processado: R$ {v_total:.2f}")
-                    st.download_button(
-                        label="⬇️ Baixar PDF Assinável (Gov.br)",
-                        data=pdf_bytes,
-                        file_name=f"Recibo_Sulmed_Logistica_{id_os}.pdf",
-                        mime="application/pdf",
-                        type="primary"
-                    )
+                st.error(resultado)
+        else:
+            st.warning("Preencha ao menos a coleta e a entrega final pra calcular a rota.")
+
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        v_base = st.number_input(
+            "Valor Base / SLA (R$)",
+            min_value=0.0,
+            value=float(st.session_state.get("carga_valor_calculado", 0.0)),
+            step=5.0,
+            help="Preenchido automaticamente ao clicar em 'Calcular Rota e SLA Base' acima — pode ajustar na mão se precisar."
+        )
+    with col2:
+        v_taxa = st.number_input("Taxas de Anomalia/Re-roteamento (R$)", min_value=0.0, value=0.0, step=5.0)
+
+    if st.button("Gerar PDF de Cobrança", type="primary", key="carga_gerar_pdf"):
+        if v_base <= 0:
+            st.warning("Calcule a rota ou insira o valor base do serviço para processar o faturamento.")
+        else:
+            v_total = v_base + v_taxa
+            roteiro_calculado = st.session_state.get("carga_roteiro_calculado")
+            roteiro_final = f"{descricao} | Roteiro Auditado: {roteiro_calculado}" if roteiro_calculado else descricao
+            caminho_pdf = gerar_pdf_entregas(id_os, data_emissao.strftime('%d/%m/%Y'), cliente, roteiro_final, v_base, v_taxa, v_total)
+            if caminho_pdf:
+                with open(caminho_pdf, "rb") as f:
+                    pdf_bytes = f.read()
+                st.success(f"Faturamento Processado: R$ {v_total:.2f}")
+                st.download_button(
+                    label="⬇️ Baixar PDF Assinável (Gov.br)",
+                    data=pdf_bytes,
+                    file_name=f"Recibo_Sulmed_Logistica_{id_os}.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
 
 # ==========================================
 # ROTEADOR DE ARQUITETURA
@@ -571,12 +619,12 @@ def roteador_principal():
     else:
         modalidade = st.sidebar.radio(
             "Selecione o Módulo:",
-            ["Traslado (Passageiros)", "Logística B2B (Faturamento)"]
+            ["Traslado (Passageiros)", "Cargas / Entregas (B2B)"]
         )
 
         if modalidade == "Traslado (Passageiros)":
             modulo_passageiros()
-        elif modalidade == "Logística B2B (Faturamento)":
+        elif modalidade == "Cargas / Entregas (B2B)":
             modulo_entregas()
 
     st.sidebar.markdown("---")
