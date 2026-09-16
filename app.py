@@ -20,6 +20,16 @@ st.set_page_config(page_title="Lox | Portal Corporativo", page_icon="🔒", layo
 CREDENCIAIS = {"sulmed": "lox2026", "tiesco": "boss"}
 NUMERO_WHATSAPP_CEO = "5551998186611"
 
+# ==========================================
+# ESQUELETO (features prontas, desligadas por padrão)
+# Ligar aqui quando o modo self-service B2B / notificação automática
+# forem ativados. Nenhuma outra mudança de código é necessária pra isso.
+# ==========================================
+FEATURE_FLAGS = {
+    "sulmed_selfservice_ativo": False,
+    "notificacao_whatsapp_ativa": False,
+}
+
 TARIFA_BASE = 14.00
 VALOR_POR_KM = 1.80
 VALOR_MINUTO_VIAGEM = 0.25
@@ -103,6 +113,19 @@ def salvar_no_banco(dados):
     except Exception as e:
         st.error(f"Erro ao salvar registro: {e}")
         return False
+
+def notificar_operador(mensagem):
+    """
+    ESQUELETO: ponto único de notificação automática.
+    Hoje desativado (FEATURE_FLAGS["notificacao_whatsapp_ativa"] = False),
+    não faz nada. Quando ativar: plugar aqui uma API de WhatsApp (ex:
+    WhatsApp Business Cloud API, Twilio ou Z-API) usando NUMERO_WHATSAPP_CEO
+    como destino. Nenhuma outra parte do código precisa mudar pra isso.
+    """
+    if not FEATURE_FLAGS["notificacao_whatsapp_ativa"]:
+        return False
+    # TODO: implementar chamada real à API de WhatsApp aqui
+    return False
 
 def calcular_rota_automatica(enderecos, total_minutos_espera):
     try:
@@ -343,6 +366,7 @@ def modulo_passageiros():
                         }
                         
                         salvar_no_banco(dados_corrida)
+                        notificar_operador(f"Novo traslado (Nova Rota): {dados_corrida['Passageiro']} em {dados_corrida['Data_Traslado']} - R$ {dados_corrida['Valor_Total']:.2f}")
                         st.success(f"## VALOR FINAL: R$ {resultado['total']:.2f}")
                         texto_recibo = gerar_recibo_texto(dados_corrida, espera_total, enderecos_pesquisa)
                         st.download_button(label="📄 Gerar Recibo B2B (Auto-PDF)", data=gerar_html_dinamico(texto_recibo), file_name="recibo.html", mime="text/html")
@@ -366,10 +390,12 @@ def modulo_passageiros():
                     "KM_Total": 0, "Valor_Total": valor_final, "Status": "Pendente"
                 }
                 salvar_no_banco(dados_fixa)
+                notificar_operador(f"Novo traslado (Rota Homologada): {dados_fixa['Passageiro']} em {dados_fixa['Data_Traslado']} - R$ {dados_fixa['Valor_Total']:.2f}")
                 st.success(f"## VALOR FINAL: R$ {valor_final:.2f}")
                 
                 # --- ÚNICO MOTOR DE PDF PERMITIDO (ARQUITETURA MODULAR) ---
-                with st.spinner("Compilando binário corporativo com compliance Gov.br..."):
+                with st.spinner("Compilando binário corporativo..."):
+                    # Puxa o texto completo com formatação de auditoria (fonte monoespaçada Courier)
                     texto_completo = gerar_recibo_texto(dados_fixa, espera_extra)
                     pdf_bytes = compilar_pdf_traslado(texto_completo)
                 
@@ -380,6 +406,42 @@ def modulo_passageiros():
                         file_name=f"Recibo_Sulmed_Traslado_{dados_fixa['ID']}.pdf",
                         mime="application/pdf"
                     )
+            
+            # --- MOTOR FPDF RENDERIZADO DIRETAMENTE NA TELA ---
+            try:
+                with st.spinner("Compilando binário do documento..."):
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", "B", 16)
+                    
+                    pdf.cell(0, 10, sanitizar_texto_fpdf("Recibo de Traslado - Sulmed / SylvaCore"), ln=True, align='C')
+                    pdf.ln(10)
+                    
+                    pdf.set_font("Arial", "", 12)
+                    
+                    # Injeção das tuas variáveis nativas declaradas no st.columns lá no topo
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Passageiro/Médico(a): {passageiro}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Data do Traslado: {data_corrida.strftime('%d/%m/%Y')} | Horário: {hora_db_str}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Rota Executada: {rota_fixa}"), ln=True)
+                    pdf.cell(0, 8, sanitizar_texto_fpdf(f"Centro de Custo: {centro_custo}"), ln=True)
+                    
+                    pdf.ln(5)
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 10, sanitizar_texto_fpdf(f"Valor Total Orçado: R$ {valor_final:.2f}"), ln=True)
+                    
+                    # LINHA BLINDADA: O cast direto para bytes() elimina o overhead de encodificação
+                    pdf_bytes = bytes(pdf.output())
+                    
+                    # O botão de download renderiza o PDF em tempo real, sem sumir
+                    st.download_button(
+                        label="⬇️ Baixar Documento Fiscal (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"Nota_Sulmed_{passageiro.replace(' ', '_')}.pdf",
+                        mime="application/pdf"
+                    )
+                    
+            except Exception as e:
+                st.error(f"Falha de compilação no motor FPDF: {e}")
 
     with aba_financeiro:
         if st.button("Carregar Matriz"):
@@ -472,17 +534,27 @@ def modulo_entregas():
 def roteador_principal():
     st.sidebar.title("SylvaCore | Lox")
     st.sidebar.markdown("---")
-    
-    modalidade = st.sidebar.radio(
-        "Selecione o Módulo:",
-        ["Traslado (Passageiros)", "Logística B2B (Faturamento)"]
-    )
-    
-    if modalidade == "Traslado (Passageiros)":
-        modulo_passageiros()
-    elif modalidade == "Logística B2B (Faturamento)":
-        modulo_entregas()
-        
+
+    usuario_atual = st.session_state.get('cliente', 'tiesco')
+
+    # --- ESQUELETO: portal self-service B2B (desativado por padrão) ---
+    # Quando FEATURE_FLAGS["sulmed_selfservice_ativo"] virar True, o login
+    # "sulmed" passa a enxergar os módulos normais (e notificar_operador()
+    # entra em ação). Até lá, fica isolado do painel financeiro interno.
+    if usuario_atual == "sulmed" and not FEATURE_FLAGS["sulmed_selfservice_ativo"]:
+        st.title("🚧 Portal Sulmed")
+        st.info("Acesso reservado para quando o modo self-service for ativado. Por enquanto, agendamentos seguem direto com a SylvaCore.")
+    else:
+        modalidade = st.sidebar.radio(
+            "Selecione o Módulo:",
+            ["Traslado (Passageiros)", "Logística B2B (Faturamento)"]
+        )
+
+        if modalidade == "Traslado (Passageiros)":
+            modulo_passageiros()
+        elif modalidade == "Logística B2B (Faturamento)":
+            modulo_entregas()
+
     st.sidebar.markdown("---")
     if st.sidebar.button("Encerrar Sessão"):
         st.session_state["autenticado"] = False

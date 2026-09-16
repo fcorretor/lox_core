@@ -1,0 +1,14 @@
+# Segredos e credenciais - NUNCA versionar
+.streamlit/
+credentiais.json
+*.pem
+*.key
+
+# Backups locais de trabalho
+*.bak-*
+*.FINAL_ESQUELETO_MERGED
+*.FINAL_MERGED
+
+# Python
+__pycache__/
+*.pyc
