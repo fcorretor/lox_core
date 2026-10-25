@@ -16,6 +16,10 @@ VALOR_MINUTO_VIAGEM = 0.25
 VALOR_MINUTO_ESPERA = 1.20
 FATOR_TRANSITO = 1.6          # OSRM subestima o tempo real na RMPA
 ANTECEDENCIA_MIN_HORAS = 4    # SLA de acionamento: 1 turno
+PRAZO_PAGAMENTO_DIAS_UTEIS = 5  # acordado com a Sulmed: após o recebimento do recibo por e-mail
+LEMBRETE_NIVEIS = (1, 5, 10)    # dias úteis de atraso que liberam os lembretes 1, 2 e 3
+REPETICOES_SUGERIR_ATALHO = 2   # a partir da 2ª vez igual, sugere salvar como atalho
+HOMOLOGACAO_MIN_VIAGENS = 4     # viagens da mesma rota nova em 60 dias para sugerir valor fixo
 
 ROTAS_HOMOLOGADAS = {
     "Porto Alegre <-> Braskem (Triunfo)": {"valor": 250.00, "destino": "Triunfo (Braskem)"},
@@ -96,6 +100,10 @@ def email():
         "senha": s.get("smtp_pass", ""),
         "destino": s.get("destino", ""),
         "cc": s.get("cc", ""),
+        # lembretes: nível 1 vai ao contato operacional, níveis 2 e 3 ao financeiro
+        "contato": s.get("contato", "") or s.get("destino", ""),
+        "financeiro": s.get("financeiro", "") or s.get("destino", ""),
+        "envio_automatico": str(s.get("envio_automatico", "true")).lower() not in ("false", "0", "nao", "não"),
     }
 
 

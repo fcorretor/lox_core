@@ -8,8 +8,8 @@ def _lista(txt):
     return [e.strip() for e in (txt or "").replace(";", ",").split(",") if e.strip()]
 
 
-def enviar(cfg, para, cc, assunto, corpo, anexo_bytes, anexo_nome):
-    """Envia e devolve a lista de destinatários. Lança exceção com a mensagem do servidor se falhar."""
+def enviar(cfg, para, cc, assunto, corpo, anexos):
+    """anexos: lista de (bytes, nome.pdf). Devolve os destinatários; lança exceção com a mensagem do servidor."""
     if not (cfg["usuario"] and cfg["senha"]):
         raise RuntimeError("Remetente SMTP não configurado nos Secrets ([email] smtp_user / smtp_pass).")
     destinos, copias = _lista(para), _lista(cc)
@@ -23,7 +23,8 @@ def enviar(cfg, para, cc, assunto, corpo, anexo_bytes, anexo_nome):
         msg["Cc"] = ", ".join(copias)
     msg["Subject"] = assunto
     msg.set_content(corpo)
-    msg.add_attachment(anexo_bytes, maintype="application", subtype="pdf", filename=anexo_nome)
+    for dados, nome in anexos:
+        msg.add_attachment(dados, maintype="application", subtype="pdf", filename=nome)
 
     ctx = ssl.create_default_context()
     if cfg["porta"] == 465:

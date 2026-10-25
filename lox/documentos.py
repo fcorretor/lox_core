@@ -11,7 +11,7 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 from fpdf.fonts import FontFace
 
-from .config import VALOR_MINUTO_ESPERA
+from .config import PRAZO_PAGAMENTO_DIAS_UTEIS, VALOR_MINUTO_ESPERA
 
 MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
          "agosto", "setembro", "outubro", "novembro", "dezembro"]
@@ -240,6 +240,10 @@ def gerar_recibo_pdf(numero, emissao, ops, prest, tom):
     pdf.set_font("Helvetica", "", 9.5)
     pdf.cell(0, 5.5, texto_pdf("Declaro que a quitação se dará mediante o crédito em conta."),
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "B", 9.5)
+    pdf.cell(0, 5.5, texto_pdf(f"Condição de pagamento: até {PRAZO_PAGAMENTO_DIAS_UTEIS} dias úteis após o "
+                               "recebimento deste recibo por e-mail."),
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     _titulo_secao(pdf, "Dados para pagamento")
     _linha(pdf, "Chave PIX:", prest["pix"])
@@ -263,7 +267,10 @@ def gerar_recibo_pdf(numero, emissao, ops, prest, tom):
     pdf.set_font("Helvetica", "", 9)
     pdf.cell(0, 5, texto_pdf(f"{prest['assinatura']} - CPF {prest['cpf']}"), align="C",
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    return _bytes(pdf)
 
+
+def _bytes(pdf):
     fd, caminho = tempfile.mkstemp(suffix=".pdf")
     os.close(fd)
     pdf.output(caminho)
@@ -271,3 +278,79 @@ def gerar_recibo_pdf(numero, emissao, ops, prest, tom):
         dados = f.read()
     os.remove(caminho)
     return dados
+
+
+def gerar_extrato_pdf(abertos, prest, tom, hoje):
+    """Extrato de pendências: uma página com todos os recibos em aberto, para o financeiro conferir de uma vez.
+
+    abertos: lista de dicts com Numero, Referencia, Enviado_Em, Vencimento, Atraso (dias úteis), Total.
+    """
+    total = round(sum(float(r["Total"] or 0) for r in abertos), 2)
+    pdf = _Recibo(orientation="P", unit="mm", format="A4")
+    pdf.set_margins(18, 16, 18)
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.set_text_color(0, 0, 0)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 7, texto_pdf("EXTRATO DE RECIBOS EM ABERTO"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(0, 5, texto_pdf(f"Posição em {hoje:%d/%m/%Y} - {prest['nome']} -> {tom['razao']}"),
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(2)
+    pdf.set_line_width(0.6)
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", "", 8.5)
+    with pdf.table(col_widths=(20, 62, 22, 22, 20, 26), text_align=("LEFT", "LEFT", "LEFT", "LEFT", "RIGHT", "RIGHT"),
+                   line_height=4.8, headings_style=FontFace(emphasis="BOLD", fill_color=(235, 235, 235)),
+                   borders_layout="HORIZONTAL_LINES") as tab:
+        cab = tab.row()
+        for h in ("Recibo", "Referência", "Enviado em", "Vencimento", "Atraso", "Valor"):
+            cab.cell(texto_pdf(h))
+        for r in abertos:
+            linha = tab.row()
+            linha.cell(texto_pdf(r["Numero"]))
+            linha.cell(texto_pdf(r["Referencia"]))
+            linha.cell(texto_pdf(r["Enviado_Em"][:10]))
+            linha.cell(texto_pdf(r["Vencimento"]))
+            linha.cell(texto_pdf(f"{r['Atraso']} d.u." if r["Atraso"] else "no prazo"))
+            linha.cell(texto_pdf(moeda(r["Total"])))
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, texto_pdf(f"TOTAL EM ABERTO: {moeda(total)}"), border="TB", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.multi_cell(0, 5, texto_pdf(
+        f"Condição acordada: pagamento em até {PRAZO_PAGAMENTO_DIAS_UTEIS} dias úteis após o recebimento do recibo "
+        "por e-mail. Atraso contado em dias úteis bancários. Os recibos assinados podem ser reenviados a qualquer momento."),
+        new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    _titulo_secao(pdf, "Dados para pagamento")
+    _linha(pdf, "Chave PIX:", prest["pix"])
+    _linha(pdf, "Banco:", prest["banco"])
+    _linha(pdf, "Favorecido:", prest["nome"])
+    _linha(pdf, "CPF:", prest["cpf"])
+    return _bytes(pdf)
+
+
+def conferir_pdf_assinado(dados, numero):
+    """Antes de enviar sozinho: o PDF tem assinatura digital e é deste recibo?
+
+    Retorna (ok, motivo). Se não der para ler o texto, confia só na assinatura.
+    """
+    if b"/ByteRange" not in dados:
+        return False, "o PDF não tem assinatura digital — confira se baixou o arquivo assinado do gov.br"
+    try:
+        import io
+
+        from pypdf import PdfReader
+        texto = " ".join((p.extract_text() or "") for p in PdfReader(io.BytesIO(dados)).pages)
+    except Exception:
+        return True, "assinatura encontrada (não foi possível ler o número do recibo)"
+    if numero not in texto:
+        return False, f"o número {numero} não aparece no PDF — parece ser o recibo de outra viagem"
+    return True, "assinatura digital e número do recibo conferidos"

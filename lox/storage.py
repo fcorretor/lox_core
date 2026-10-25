@@ -2,7 +2,8 @@
 
 Produção: Google Sheets (mesma planilha da v6.1). A aba "Página1" continua com
 as 12 colunas originais na mesma ordem; as colunas novas entram à direita. Os
-recibos ficam numa aba nova, "Recibos", criada automaticamente.
+recibos e os atalhos ficam em abas próprias ("Recibos", "Atalhos"), criadas
+automaticamente.
 
 Sem credenciais (ou com LOX_OFFLINE=1): SQLite local, mesma interface.
 """
@@ -28,8 +29,21 @@ COLUNAS_OPS = [
 COLUNAS_RECIBOS = [
     "Numero", "Emissao", "Operacoes", "Total", "Status",
     "Assinado_Em", "Enviado_Em", "Enviado_Para", "Pago_Em", "Obs",
+    "Vencimento", "Lembretes",
 ]
-NUMERICAS = {"KM_Total", "Valor_Total", "Espera_Min", "Total"}
+COLUNAS_ATALHOS = [
+    "ID", "Nome", "Modalidade", "Rota", "Enderecos", "Ida_Volta", "Espera_Min",
+    "Hora_Ida", "Hora_Volta", "Passageiro", "Solicitante", "Centro_Custo",
+    "Valor", "KM", "Usos", "Ultimo_Uso", "Ativo",
+]
+
+# tabela -> (aba na planilha, colunas, chave primária)
+TABELAS = {
+    "ops": ("Página1", COLUNAS_OPS, "ID"),
+    "recibos": ("Recibos", COLUNAS_RECIBOS, "Numero"),
+    "atalhos": ("Atalhos", COLUNAS_ATALHOS, "ID"),
+}
+NUMERICAS = {"KM_Total", "Valor_Total", "Espera_Min", "Total", "Valor", "KM", "Usos"}
 
 
 def _normalizar(df, colunas):
@@ -46,7 +60,42 @@ def _normalizar(df, colunas):
     return df
 
 
-class SheetsStore:
+class _Base:
+    """Atalhos legíveis usados pelo app."""
+
+    def listar_ops(self):
+        return self.listar("ops")
+
+    def listar_recibos(self):
+        return self.listar("recibos")
+
+    def listar_atalhos(self):
+        df = self.listar("atalhos")
+        return df[df["Ativo"] != "0"]
+
+    def adicionar_op(self, dados):
+        self.adicionar("ops", dados)
+
+    def adicionar_recibo(self, dados):
+        self.adicionar("recibos", dados)
+
+    def adicionar_atalho(self, dados):
+        self.adicionar("atalhos", dados)
+
+    def atualizar_ops(self, ids, campos):
+        self.atualizar("ops", ids, campos)
+
+    def atualizar_recibo(self, numero, campos):
+        self.atualizar("recibos", [numero], campos)
+
+    def atualizar_atalho(self, id_, campos):
+        self.atualizar("atalhos", [id_], campos)
+
+    def excluir_recibo(self, numero):
+        self.excluir("recibos", numero)
+
+
+class SheetsStore(_Base):
     modo = "Google Sheets"
 
     def __init__(self):
@@ -54,13 +103,14 @@ class SheetsStore:
         creds = dict(st.secrets["connections"]["gsheets"])
         creds.setdefault("universe_domain", "googleapis.com")
         planilha = gspread.service_account_from_dict(creds).open_by_key(PLANILHA_ID)
-        self.ops = planilha.worksheet("Página1")
-        try:
-            self.recibos = planilha.worksheet("Recibos")
-        except gspread.WorksheetNotFound:
-            self.recibos = planilha.add_worksheet("Recibos", rows=500, cols=len(COLUNAS_RECIBOS))
-        self._garantir_cabecalho(self.ops, COLUNAS_OPS)
-        self._garantir_cabecalho(self.recibos, COLUNAS_RECIBOS)
+        self.abas, self.cab, self._cache = {}, {}, {}
+        for tabela, (aba, colunas, _) in TABELAS.items():
+            try:
+                ws = planilha.worksheet(aba)
+            except gspread.WorksheetNotFound:
+                ws = planilha.add_worksheet(aba, rows=500, cols=len(colunas))
+            self.abas[tabela] = ws
+            self.cab[tabela] = self._garantir_cabecalho(ws, colunas)
 
     @staticmethod
     def _garantir_cabecalho(ws, colunas):
@@ -71,123 +121,84 @@ class SheetsStore:
             if ws.col_count < len(novo):
                 ws.add_cols(len(novo) - ws.col_count)
             ws.update([novo], "A1")
-        ws._lox_cab = ws.row_values(1)
+            return novo
+        return atual
 
-    def _ler(self, ws, colunas):
+    def listar(self, tabela):
         # o Streamlit reroda o script a cada clique; o cache curto poupa a cota de leitura do Google
-        cache = self.__dict__.setdefault("_cache", {})
-        if ws.title in cache and time.time() - cache[ws.title][0] < 30:
-            return cache[ws.title][1].copy()
-        df = self._ler_planilha(ws, colunas)
-        cache[ws.title] = (time.time(), df)
+        if tabela in self._cache and time.time() - self._cache[tabela][0] < 30:
+            return self._cache[tabela][1].copy()
+        colunas = TABELAS[tabela][1]
+        valores = self.abas[tabela].get_all_values()
+        if len(valores) <= 1:
+            df = _normalizar(pd.DataFrame(columns=colunas), colunas)
+        else:
+            cab = valores[0]
+            linhas = [l + [""] * (len(cab) - len(l)) for l in valores[1:]]
+            df = _normalizar(pd.DataFrame(linhas, columns=cab), colunas)
+        self._cache[tabela] = (time.time(), df)
         return df.copy()
 
-    def _invalidar(self):
-        self.__dict__.get("_cache", {}).clear()
+    def adicionar(self, tabela, dados):
+        self._cache.clear()
+        self.abas[tabela].append_row([dados.get(c, "") for c in self.cab[tabela]], value_input_option="RAW")
 
-    @staticmethod
-    def _ler_planilha(ws, colunas):
-        valores = ws.get_all_values()
-        if len(valores) <= 1:
-            return _normalizar(pd.DataFrame(columns=colunas), colunas)
-        cab = valores[0]
-        linhas = [l + [""] * (len(cab) - len(l)) for l in valores[1:]]
-        return _normalizar(pd.DataFrame(linhas, columns=cab), colunas)
-
-    @staticmethod
-    def _anexar(ws, dados):
-        ws.append_row([dados.get(c, "") for c in ws._lox_cab], value_input_option="RAW")
-
-    @staticmethod
-    def _atualizar(ws, chave, valores_chave, campos):
+    def atualizar(self, tabela, chaves, campos):
         import gspread
-        cab = ws._lox_cab
-        col_chave = ws.col_values(cab.index(chave) + 1)
+        self._cache.clear()
+        ws, cab, chave = self.abas[tabela], self.cab[tabela], TABELAS[tabela][2]
+        chaves = set(chaves)
         celulas = []
-        for i, v in enumerate(col_chave[1:], start=2):
-            if v in valores_chave:
-                for campo, valor in campos.items():
-                    celulas.append(gspread.Cell(i, cab.index(campo) + 1, valor))
+        for i, v in enumerate(ws.col_values(cab.index(chave) + 1)[1:], start=2):
+            if v in chaves:
+                celulas += [gspread.Cell(i, cab.index(c) + 1, val) for c, val in campos.items()]
         if celulas:
             ws.update_cells(celulas, value_input_option="RAW")
 
-    def listar_ops(self):
-        return self._ler(self.ops, COLUNAS_OPS)
-
-    def listar_recibos(self):
-        return self._ler(self.recibos, COLUNAS_RECIBOS)
-
-    def adicionar_op(self, dados):
-        self._invalidar()
-        self._anexar(self.ops, dados)
-
-    def adicionar_recibo(self, dados):
-        self._invalidar()
-        self._anexar(self.recibos, dados)
-
-    def atualizar_ops(self, ids, campos):
-        self._invalidar()
-        self._atualizar(self.ops, "ID", set(ids), campos)
-
-    def atualizar_recibo(self, numero, campos):
-        self._invalidar()
-        self._atualizar(self.recibos, "Numero", {numero}, campos)
-
-    def excluir_recibo(self, numero):
-        self._invalidar()
-        col = self.recibos.col_values(self.recibos._lox_cab.index("Numero") + 1)
-        if numero in col:
-            self.recibos.delete_rows(col.index(numero) + 1)
+    def excluir(self, tabela, valor_chave):
+        self._cache.clear()
+        ws, cab, chave = self.abas[tabela], self.cab[tabela], TABELAS[tabela][2]
+        col = ws.col_values(cab.index(chave) + 1)
+        if valor_chave in col:
+            ws.delete_rows(col.index(valor_chave) + 1)
 
 
-class LocalStore:
+class LocalStore(_Base):
     modo = "Local (offline)"
 
     def __init__(self, caminho=None):
         self.caminho = caminho or os.path.join(os.path.dirname(os.path.dirname(__file__)), "lox_local.db")
         with self._con() as c:
-            c.execute(f"CREATE TABLE IF NOT EXISTS ops ({', '.join(f'{x} TEXT' for x in COLUNAS_OPS)})")
-            c.execute(f"CREATE TABLE IF NOT EXISTS recibos ({', '.join(f'{x} TEXT' for x in COLUNAS_RECIBOS)})")
+            for tabela, (_, colunas, _) in TABELAS.items():
+                c.execute(f"CREATE TABLE IF NOT EXISTS {tabela} ({', '.join(f'{x} TEXT' for x in colunas)})")
+                existentes = {r[1] for r in c.execute(f"PRAGMA table_info({tabela})")}
+                for x in colunas:
+                    if x not in existentes:
+                        c.execute(f"ALTER TABLE {tabela} ADD COLUMN {x} TEXT")
 
     def _con(self):
         return sqlite3.connect(self.caminho)
 
-    def _ler(self, tabela, colunas):
+    def listar(self, tabela):
         with self._con() as c:
-            return _normalizar(pd.read_sql(f"SELECT * FROM {tabela}", c), colunas)
+            return _normalizar(pd.read_sql(f"SELECT * FROM {tabela}", c), TABELAS[tabela][1])
 
-    def _inserir(self, tabela, colunas, dados):
+    def adicionar(self, tabela, dados):
+        colunas = TABELAS[tabela][1]
         with self._con() as c:
-            c.execute(f"INSERT INTO {tabela} VALUES ({','.join('?' * len(colunas))})",
+            c.execute(f"INSERT INTO {tabela} ({','.join(colunas)}) VALUES ({','.join('?' * len(colunas))})",
                       [str(dados.get(x, "")) for x in colunas])
 
-    def _atualizar(self, tabela, chave, valores, campos):
+    def atualizar(self, tabela, chaves, campos):
+        chave = TABELAS[tabela][2]
         sets = ", ".join(f"{k}=?" for k in campos)
         with self._con() as c:
-            for v in valores:
+            for v in chaves:
                 c.execute(f"UPDATE {tabela} SET {sets} WHERE {chave}=?", [str(x) for x in campos.values()] + [v])
 
-    def listar_ops(self):
-        return self._ler("ops", COLUNAS_OPS)
-
-    def listar_recibos(self):
-        return self._ler("recibos", COLUNAS_RECIBOS)
-
-    def adicionar_op(self, dados):
-        self._inserir("ops", COLUNAS_OPS, dados)
-
-    def adicionar_recibo(self, dados):
-        self._inserir("recibos", COLUNAS_RECIBOS, dados)
-
-    def atualizar_ops(self, ids, campos):
-        self._atualizar("ops", "ID", ids, campos)
-
-    def atualizar_recibo(self, numero, campos):
-        self._atualizar("recibos", "Numero", [numero], campos)
-
-    def excluir_recibo(self, numero):
+    def excluir(self, tabela, valor_chave):
         with self._con() as c:
-            c.execute("DELETE FROM recibos WHERE Numero=?", (numero,))
+            c.execute(f"DELETE FROM {tabela} WHERE {TABELAS[tabela][2]}=?", (valor_chave,))
 
 
 @st.cache_resource(show_spinner=False)
