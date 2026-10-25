@@ -1,8 +1,12 @@
 # Segredos e credenciais - NUNCA versionar
-.streamlit/
+.streamlit/secrets.toml
 credentiais.json
 *.pem
 *.key
+
+# Dados locais (modo offline e PDFs assinados)
+lox_local.db
+recibos/
 
 # Backups locais de trabalho
 *.bak-*
